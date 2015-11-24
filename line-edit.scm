@@ -271,9 +271,7 @@
         (- 8 (modulo x 8)))
        ((and (>= chcode 0) (<= chcode #x7f)) 1)
        (else wide-char-width))))
-  (define (gen-char g start-column)
-    (gbuffer-filter (^[ch col] (values (list ch) (+ col 1)))
-                    start-column g))
+
   (let* ([con (~ ctx'console)]
          [y   (~ ctx'initpos-y)]
          [x   (~ ctx'initpos-x)]
@@ -284,7 +282,7 @@
          [pos-x  x]
          [pos-y  y]
          [pos (gap-buffer-pos buffer)]
-         [g   (gen-char (gap-buffer->generator buffer) x)]
+         [g   (gap-buffer->generator buffer)]
          [line-wrapping
           (lambda (disp-x1 w)
             (when (>= disp-x1 w)
@@ -331,9 +329,11 @@
 
         (set! x      (+ x      (get-char-width ch x      (~ ctx'wide-char-pos-width))))
         (set! disp-x (+ disp-x (get-char-width ch disp-x (~ ctx'wide-char-disp-width))))
-        (if (eqv? ch #\newline)
-          (line-wrapping w w)
-          (line-wrapping disp-x w))
+        (case ch
+          ((#\newline)
+           (line-wrapping w w))
+          (else
+           (line-wrapping disp-x w)))
 
         (when (or (= n pos) pos-to-end-flag)
           (set! pos-x x)
