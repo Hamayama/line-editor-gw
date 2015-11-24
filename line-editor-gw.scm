@@ -22,6 +22,7 @@
  [else
   (use text.console)
   (use text.line-edit)])
+
 (use gauche.listener :only (complete-sexp?))
 (use gauche.vport)
 
