@@ -203,7 +203,7 @@
         (sbh (screen-buffer-height)))
     (cond
      ((>= y (- sbh 1))
-      (display (make-string (* sbw 1)) (~ con'oport)) (flush (~ con'oport))
+      (display (make-string sbw) (~ con'oport)) (flush (~ con'oport))
       (locate x (- sbh 2)))
       )))
 

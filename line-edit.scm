@@ -234,11 +234,11 @@
          [s (if (applicable? p) (with-output-to-string p) (x->string p))])
     (putstr (~ ctx'console) s)))
 
-;;; Show secondary prompt
-;;; TODO: make this customizable
-;(define (show-secondary-prompt ctx)
-;  (when (> (~ ctx'initpos-x) 0)
-;    (putstr (~ ctx'console) (make-string (~ ctx'initpos-x) #\.))))
+;; Show secondary prompt
+;; TODO: make this customizable
+(define (show-secondary-prompt ctx)
+  (when (> (~ ctx'initpos-x) 0)
+    (putstr (~ ctx'console) (make-string (~ ctx'initpos-x) #\.))))
 
 ;;; TODO: Mind char-width.
 ;;; Calculate cursor location of the buffer position, considering
@@ -331,7 +331,9 @@
         (set! disp-x (+ disp-x (get-char-width ch disp-x (~ ctx'wide-char-disp-width))))
         (case ch
           ((#\newline)
-           (line-wrapping w w))
+           (line-wrapping w w)
+           (show-secondary-prompt ctx)
+           (set! x (~ ctx'initpos-x)))
           (else
            (line-wrapping disp-x w)))
 
