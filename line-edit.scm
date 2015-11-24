@@ -136,6 +136,14 @@
          (if (> (gap-buffer-content-length buffer) 0)
            (commit-history ctx buffer)
            (eof-object)))
+
+(cond-expand
+ [gauche.os.windows
+       ;; for windows ime bug
+       (last-scroll con)
+  ]
+ [else])
+
        (show-prompt ctx)
        (init-screen-params ctx)
        ;; Main loop.  Get a key and invoke associated command.
@@ -282,16 +290,29 @@
             (when (>= disp-x1 w)
               (set! x      0)
               (set! disp-x 0)
-              (cond
-               ((= y (- h 1))
-                (cursor-down/scroll-up con)
-                (receive (y x) (query-cursor-position (~ ctx'console))
-                  (set! (~ ctx'initpos-y) y)))
-               (else
-                (inc! y)))))])
-    (move-cursor-to con y x)
-    (clear-to-eos con)
+              (move-cursor-to con y x)
+              (cursor-down/scroll-up con)
+              (receive (y2 x2) (query-cursor-position con)
+                (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y 1)))
+                (set! y y2))
+
+(cond-expand
+ [gauche.os.windows
+              ;; for windows ime bug
+              (move-cursor-to con y x)
+              (last-scroll con)
+              (receive (y2 x2) (query-cursor-position con)
+                (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y)))
+                (set! y y2))
+  ]
+ [else])
+
+              ))])
+
     (reset-character-attribute con)
+    (move-cursor-to con y 0)
+    (show-prompt ctx)
+    (clear-to-eos con)
     (let loop ([n 1])
       (glet1 ch (g)
 
@@ -302,8 +323,7 @@
                  (reset-character-attribute con)]))
 
         (case ch
-          ((#\tab))
-          ((#\newline))
+          ((#\tab #\newline))
           (else
            (line-wrapping (+ disp-x (get-char-width ch disp-x (~ ctx'wide-char-disp-width))) (+ w 1))
            (move-cursor-to con y x)
@@ -314,6 +334,7 @@
         (if (eqv? ch #\newline)
           (line-wrapping w w)
           (line-wrapping disp-x w))
+
         (when (or (= n pos) pos-to-end-flag)
           (set! pos-x x)
           (set! pos-y y))
