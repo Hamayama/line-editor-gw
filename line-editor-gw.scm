@@ -78,22 +78,19 @@
     ;    (print line)
     ;    (inc! count)
     ;    (loop)))))
-    (let* ((p (make <virtual-input-port>
-                    :getc
-                    (let1 p (open-input-string "")
-                      (lambda ()
-                       (let loop ((ch (read-char p)))
-                         (cond
-                          ((eof-object? ch)
-                           (set! p (open-input-string
-                                    (string-append (read-line/edit ctx)
-                                                   (string #\newline))))
-                           (newline)
-                           (inc! count)
-                           (loop (read-char p)))
-                          (else
-                           ch)))))))
-           (reader    (lambda () (read p)))
+    (let* ((p      (open-input-string ""))
+           (reader (lambda ()
+                    (let loop ((s (read p)))
+                      (cond
+                       ((eof-object? s)
+                        (set! p (open-input-string
+                                 (string-append (read-line/edit ctx)
+                                                (string #\newline))))
+                        (newline)
+                        (inc! count)
+                        (loop (read p)))
+                       (else
+                        s)))))
            (evaluator #f)
            (printer   #f)
            (prompter  (lambda ())))
