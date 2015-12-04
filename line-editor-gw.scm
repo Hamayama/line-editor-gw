@@ -25,6 +25,7 @@
 
 (use gauche.listener :only (complete-sexp?))
 (use gauche.vport)
+(use gauche.interactive)
 
 (define (main args)
   (let* ([con (guard (e [else (exit 1 (~ e'message))])
@@ -78,19 +79,24 @@
     ;    (print line)
     ;    (inc! count)
     ;    (loop)))))
-    (let* ((p      (open-input-string ""))
-           (reader (lambda ()
-                    (let loop ((s (read p)))
+    (let* ((p (make <virtual-input-port>
+                :getc
+                (let1 p1 (open-input-string "")
+                  (lambda ()
+                    (let loop ((ch (read-char p1)))
                       (cond
-                       ((eof-object? s)
-                        (set! p (open-input-string
-                                 (string-append (read-line/edit ctx)
-                                                (string #\newline))))
+                       ((eof-object? ch)
+                        (set! p1 (open-input-string
+                                  (string-append (read-line/edit ctx)
+                                                 (string #\newline))))
                         (newline)
                         (inc! count)
-                        (loop (read p)))
+                        (loop (read-char p1)))
                        (else
-                        s)))))
+                        ch)))))))
+           (reader (lambda ()
+                     (with-input-from-port p
+                       (with-module gauche.interactive %reader))))
            (evaluator #f)
            (printer   #f)
            (prompter  (lambda ())))
