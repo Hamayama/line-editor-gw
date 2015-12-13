@@ -340,7 +340,8 @@
           ((#\newline)
            (line-wrapping w w)
            (show-secondary-prompt ctx)
-           (set! x (~ ctx'initpos-x)))
+           (set! x (~ ctx'initpos-x))
+           (set! disp-x x))
           (else
            (line-wrapping disp-x w)))
 
