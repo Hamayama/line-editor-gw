@@ -80,6 +80,7 @@
    (prompt  :init-keyword :prompt :init-value "")
    (keymap  :init-keyword :keymap :init-form (default-keymap))
    (input-continues :init-keyword :input-continues :init-form #f)
+   ;; for wide characters support
    (wide-char-disp-width :init-keyword :wide-char-disp-width :init-value 2)
    (wide-char-pos-width  :init-keyword :wide-char-pos-width  :init-value 2)
 
@@ -171,7 +172,12 @@
        ;; we treat as if it is associated to the self-insert-command.
        ;; Given the large character set, it is a reasonable compromise.
        (let loop ([redisp #f])
-         (when redisp (redisplay ctx buffer))
+         (when redisp
+
+           ;; for speed up of pasting a text
+           ;(redisplay ctx buffer))
+           (if (not (chready? con)) (redisplay ctx buffer)))
+
          (let* ([ch (getch con)]
                 [h (hash-table-get (~ ctx'keymap) ch ch)])
            (cond
@@ -194,8 +200,9 @@
                   (commit-history ctx buffer)
                   (eof-object))]
 
+               ;; to aboid overwriting input lines
                ;['commit (commit-history ctx buffer)]
-               ['commit (redisplay ctx buffer #t) ; to avoid overwriting of input lines
+               ['commit (redisplay ctx buffer #t)
                         (commit-history ctx buffer)]
 
                ['undone (reset-last-yank! ctx)
