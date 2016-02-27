@@ -1,9 +1,3 @@
-;;; line-edit.scm
-;;;
-;;;   Modified for Windows, by Hamayama (2015).
-;;;   Licensed under the same license that the original text.line-edit is.
-;;;
-;;; --
 ;;;
 ;;; text.line-edit - line editing
 ;;;
@@ -37,25 +31,16 @@
 ;;;   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ;;;
 
-;(define-module text.line-edit
-(define-module line-edit
+(define-module text.line-edit
   (use gauche.generator)
   (use data.ring-buffer)
   (use data.queue)
   (use util.match)
-
-(cond-expand
- [gauche.os.windows
-  (use mscon)
-  (use mscontext)]
- [else
-  (use text.console)])
-
+  (use text.console)
   (use text.gap-buffer)
   (export <line-edit-context> read-line/edit)
   )
-;(select-module text.line-edit)
-(select-module line-edit)
+(select-module text.line-edit)
 
 (define *kill-ring-size* 60)
 (define *history-size* 200)
@@ -80,9 +65,6 @@
    (prompt  :init-keyword :prompt :init-value "")
    (keymap  :init-keyword :keymap :init-form (default-keymap))
    (input-continues :init-keyword :input-continues :init-form #f)
-   ;; for wide characters support
-   (wide-char-disp-width :init-keyword :wide-char-disp-width :init-value 2)
-   (wide-char-pos-width  :init-keyword :wide-char-pos-width  :init-value 2)
 
    ;; Following slots are private.
    (initpos-y)
@@ -137,14 +119,6 @@
          (if (> (gap-buffer-content-length buffer) 0)
            (commit-history ctx buffer)
            (eof-object)))
-
-(cond-expand
- [gauche.os.windows
-       ;; for windows ime bug
-       (last-scroll con)
-  ]
- [else])
-
        (show-prompt ctx)
        (init-screen-params ctx)
        ;; Main loop.  Get a key and invoke associated command.
@@ -172,12 +146,7 @@
        ;; we treat as if it is associated to the self-insert-command.
        ;; Given the large character set, it is a reasonable compromise.
        (let loop ([redisp #f])
-         (when redisp
-
-           ;; for speed up of pasting a text
-           ;(redisplay ctx buffer))
-           (if (not (chready? con)) (redisplay ctx buffer)))
-
+         (when redisp (redisplay ctx buffer))
          (let* ([ch (getch con)]
                 [h (hash-table-get (~ ctx'keymap) ch ch)])
            (cond
@@ -199,12 +168,7 @@
                 (if (> (gap-buffer-content-length buffer) 0)
                   (commit-history ctx buffer)
                   (eof-object))]
-
-               ;; to aboid overwriting input lines
-               ;['commit (commit-history ctx buffer)]
-               ['commit (redisplay ctx buffer #t)
-                        (commit-history ctx buffer)]
-
+               ['commit (commit-history ctx buffer)]
                ['undone (reset-last-yank! ctx)
                         (clear-mark! ctx buffer)
                         (loop #t)] ; don't break undo sequence
@@ -247,109 +211,89 @@
   (when (> (~ ctx'initpos-x) 0)
     (putstr (~ ctx'console) (make-string (~ ctx'initpos-x) #\.))))
 
-;;; TODO: Mind char-width.
-;;; Calculate cursor location of the buffer position, considering
-;;; tab expansion & newlines.
-;;; Returns y and x.  assuming we know cursor is inside screen.
-;(define (current-buffer-cursor-position ctx buffer)
-;  (let ([g (gap-buffer->generator buffer)]
-;        [width (~ ctx'screen-width)]
-;        [start-y (~ ctx'initpos-y)]
-;        [start-x (~ ctx'initpos-x)]
-;        [buffer-pos (gap-buffer-pos buffer)])
-;    (let loop ([n 0] ; character count
-;               [y start-y]
-;               [x start-x])
-;      (cond [(= n buffer-pos) (values y x)]
-;            [(= x width) (loop n (+ y 1) 0)]
-;            [else
-;             (case (g)
-;               [(#\tab) (loop (+ n 1) y (* (quotient (+ x 8) 8) 8))]
-;               [(#\newline) (loop (+ n 1) (+ y 1) (~ ctx'initpos-x))]
-;               [else (loop (+ n 1) y (+ x 1))])]))))  
+;; TODO: Mind char-width.
+;; Calculate cursor location of the buffer position, considering
+;; tab expansion & newlines.
+;; Returns y and x.  assuming we know cursor is inside screen.
+(define (current-buffer-cursor-position ctx buffer)
+  (let ([g (gap-buffer->generator buffer)]
+        [width (~ ctx'screen-width)]
+        [start-y (~ ctx'initpos-y)]
+        [start-x (~ ctx'initpos-x)]
+        [buffer-pos (gap-buffer-pos buffer)])
+    (let loop ([n 0] ; character count
+               [y start-y]
+               [x start-x])
+      (cond [(= n buffer-pos) (values y x)]
+            [(= x width) (loop n (+ y 1) 0)]
+            [else
+             (case (g)
+               [(#\tab) (loop (+ n 1) y (* (quotient (+ x 8) 8) 8))]
+               [(#\newline) (loop (+ n 1) (+ y 1) (~ ctx'initpos-x))]
+               [else (loop (+ n 1) y (+ x 1))])]))))  
 
 ;; TODO: Mind char-width.
-;(define (redisplay ctx buffer)
-(define (redisplay ctx buffer :optional (pos-to-end-flag #f))
-  (define (get-char-width ch x wide-char-width)
-    (let1 chcode (char->integer ch)
-      (cond
-       ((eqv? ch #\tab)
-        (- 8 (modulo x 8)))
-       ((and (>= chcode 0) (<= chcode #x7f)) 1)
-       (else wide-char-width))))
+(define (redisplay ctx buffer)
+  ;; generator that handles tab expansion
+  ;; generate (<char> . <pos>) where <pos> is the input position, or
+  ;; #f if <char> is expanded.
+  (define (gen/tab g start-column)
+    (gbuffer-filter (^[ch col&pos]
+                      (match-let1 (col . pos) col&pos
+                        (if (eqv? ch #\tab)
+                          (let1 nextcol (* (quotient (+ col 8) 8) 8)
+                            (values (cons (cons #\space pos)
+                                          (make-list (- nextcol col 1)
+                                                     (cons #\space #f)))
+                                    (cons nextcol (+ pos 1))))
+                          (values (list (cons ch pos))
+                                  (cons (+ col 1) (+ pos 1))))))
+                    (cons start-column 0) g))
 
-  (let* ([con (~ ctx'console)]
-         [y   (~ ctx'initpos-y)]
-         [x   (~ ctx'initpos-x)]
-         [w   (~ ctx'screen-width)]
-         [h   (~ ctx'screen-height)]
-         [sel (selected-range ctx buffer)]
-         [disp-x x]
-         [pos-x  x]
-         [pos-y  y]
-         [pos (gap-buffer-pos buffer)]
-         [g   (gap-buffer->generator buffer)]
-         [line-wrapping
-          (lambda (disp-x1 w)
-            (when (>= disp-x1 w)
-              (set! x      0)
-              (set! disp-x 0)
-              (move-cursor-to con y x)
-              (cursor-down/scroll-up con)
-              (receive (y2 x2) (query-cursor-position con)
-                (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y 1)))
-                (set! y y2))
-
-(cond-expand
- [gauche.os.windows
-              ;; for windows ime bug
-              (move-cursor-to con y x)
-              (last-scroll con)
-              (receive (y2 x2) (query-cursor-position con)
-                (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y)))
-                (set! y y2))
-  ]
- [else])
-
-              ))])
-
-    (reset-character-attribute con)
-    (move-cursor-to con y 0)
-    (show-prompt ctx)
+  (let ([con (~ ctx'console)]
+        [y   (~ ctx'initpos-y)]
+        [x   (~ ctx'initpos-x)]
+        [w   (~ ctx'screen-width)]
+        [h   (~ ctx'screen-height)]
+        [sel (selected-range ctx buffer)])
+    (define g (gen/tab (gap-buffer->generator buffer) x))
+    ;; NB: If multiline chunk exceeds screen height, we skip the region
+    ;; where y becomes negative.
+    (move-cursor-to con (max y 0) x)
     (clear-to-eos con)
-    (let loop ([n 1])
-      (glet1 ch (g)
-
-        (when (and sel (not (eqv? (car sel) (cdr sel))))
-          (cond [(eqv? (- n 1) (car sel))
-                 (set-character-attribute con '(#f #f bright underscore))]
-                [(eqv? (- n 1) (cdr sel))
-                 (reset-character-attribute con)]))
-
-        (case ch
-          ((#\tab #\newline))
-          (else
-           (line-wrapping (+ disp-x (get-char-width ch disp-x (~ ctx'wide-char-disp-width))) (+ w 1))
-           (move-cursor-to con y x)
-           (putch con ch)))
-
-        (set! x      (+ x      (get-char-width ch x      (~ ctx'wide-char-pos-width))))
-        (set! disp-x (+ disp-x (get-char-width ch disp-x (~ ctx'wide-char-disp-width))))
-        (case ch
-          ((#\newline)
-           (line-wrapping w w)
-           (show-secondary-prompt ctx)
-           (set! x (~ ctx'initpos-x))
-           (set! disp-x x))
-          (else
-           (line-wrapping disp-x w)))
-
-        (when (or (= n pos) pos-to-end-flag)
-          (set! pos-x x)
-          (set! pos-y y))
-        (loop (+ n 1))))
-    (move-cursor-to con pos-y pos-x)))
+    (reset-character-attribute con)
+    (let loop ([y y] [x x])
+      (glet1 ch&pos (g)
+        (match-let1 (ch . pos) ch&pos
+          (when (and sel (not (eqv? (car sel) (cdr sel))))
+            (cond [(eqv? pos (car sel))
+                   (set-character-attribute con '(#f #f bright underscore))]
+                  [(eqv? pos (cdr sel))
+                   (reset-character-attribute con)]))
+          (cond
+           [(= x w)
+            (if (= y (- h 1))
+              (begin (dec! (~ ctx'initpos-y))
+                     (cursor-down/scroll-up con))
+              (inc! y))
+            (when (>= y 0)
+              (move-cursor-to con y 0)
+              (putch con ch)
+              (move-cursor-to con y 1))
+            (loop y 1)]
+           [(eqv? ch #\newline) ; works as if CR+LF
+            (if (= y (- h 1))
+              (begin (dec! (~ ctx'initpos-y))
+                     (cursor-down/scroll-up con))
+              (inc! y))
+            (when (>= y 0)
+              (move-cursor-to con y 0)
+              (show-secondary-prompt ctx))
+            (loop y (~ ctx'initpos-x))]
+           [else (when (>= y 0) (putch con ch))
+                 (loop y (+ x 1))])))))
+  (receive (cy cx) (current-buffer-cursor-position ctx buffer)
+    (move-cursor-to (~ ctx'console) cy cx)))
 
 ;;
 ;; Key combinations
@@ -410,10 +354,11 @@
 ;; undo stack.  When history is recalled and edited, and then the user
 ;; moves history position, we save the edited line and its undo stack
 ;; in this table.  When the user comes back to the history position,
-;; we present the saved one.
+;; we present the saved one instead of the actual history.
 ;; Note that when the user recalls history for the first time of the session,
 ;; we save the fresh line and its undo info in the transient table
 ;; as the history position -1.
+;; The table is reset when the user commits the input.
 (define (ensure-history-transient ctx)
   (or (~ ctx'history-transient)
       (rlet1 tab (make-hash-table 'eqv?)
@@ -535,36 +480,24 @@
          (gap-buffer-edit! buf `(d ,p-1 1)))))
 
 (define (backward-char ctx buf key)
-  ;(and (not (gap-buffer-gap-at? buf 'beginning))
-  ;     (begin (gap-buffer-move! buf -1 'current)
-  ;            'move)))
-  (if (not (gap-buffer-gap-at? buf 'beginning))
-    (gap-buffer-move! buf -1 'current))
-  'move)
+  (and (not (gap-buffer-gap-at? buf 'beginning))
+       (begin (gap-buffer-move! buf -1 'current)
+              'move)))
 
 (define (forward-char ctx buf key)
-  ;(and (not (gap-buffer-gap-at? buf 'end))
-  ;     (begin (gap-buffer-move! buf 1 'current)
-  ;            'move)))
-  (if (not (gap-buffer-gap-at? buf 'end))
-    (gap-buffer-move! buf 1 'current))
-  'move)
+  (and (not (gap-buffer-gap-at? buf 'end))
+       (begin (gap-buffer-move! buf 1 'current)
+              'move)))
 
 (define (move-beginning-of-line ctx buf key)
-  ;(and (not (gap-buffer-gap-at? buf 'beginning))
-  ;     (begin (gap-buffer-move! buf 0 'beginning)
-  ;            'move)))
-  (if (not (gap-buffer-gap-at? buf 'beginning))
-    (gap-buffer-move! buf 0 'beginning))
-  'move)
+  (and (not (gap-buffer-gap-at? buf 'beginning))
+       (begin (gap-buffer-move! buf 0 'beginning)
+              'move)))
 
 (define (move-end-of-line ctx buf key)
-  ;(and (not (gap-buffer-gap-at? buf 'end))
-  ;     (begin (gap-buffer-move! buf 0 'end)
-  ;            'move)))
-  (if (not (gap-buffer-gap-at? buf 'end))
-    (gap-buffer-move! buf 0 'end))
-  'move)
+  (and (not (gap-buffer-gap-at? buf 'end))
+       (begin (gap-buffer-move! buf 0 'end)
+              'move)))
 
 (define (set-mark-command ctx buf key)
   (set-mark! ctx buf)
@@ -686,12 +619,8 @@
   (beep (~ ctx'console))
   #f)
 
-(define (nop-command ctx buf key)
-  #f)
-
 (define (default-keymap)
   (hash-table 'equal?
-              `(,(ctrl #\space) . ,set-mark-command)
               `(,(ctrl #\@) . ,set-mark-command)
               `(,(ctrl #\a) . ,move-beginning-of-line)
               `(,(ctrl #\b) . ,backward-char)
@@ -725,7 +654,6 @@
               `(,(ctrl #\^) . ,undefined-command)
               `(,(ctrl #\_) . ,undo)
 
-              `(,(alt #\null) . ,nop-command)
               `(,(alt #\space) . ,undefined-command) ; should be set-mark
               `(,(alt #\!) . ,undefined-command)
               `(,(alt #\") . ,undefined-command)
