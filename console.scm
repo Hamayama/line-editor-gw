@@ -1,3 +1,5 @@
+;;; This program was modified for Windows.
+
 ;;;
 ;;; text.console - basic console control
 ;;;
@@ -50,6 +52,12 @@
   (use gauche.generator)
   (use gauche.sequence)
   (use gauche.termios)
+
+(cond-expand
+ [gauche.os.windows
+  (require "termios_patch")]
+ [else])
+
   (use data.trie)
   (use data.queue)
   (use util.match)
@@ -63,6 +71,7 @@
           reset-terminal clear-screen clear-to-eol clear-to-eos
           set-character-attribute reset-character-attribute
           with-character-attribute
+          last-scroll ; for windows ime bug
 
           make-default-console))
 (select-module text.console)
@@ -153,11 +162,25 @@
 
 ;; Read a char; returns a char, or #f on timeout.  May return EOF.
 (define (%read-char/timeout con)
-  (receive (nfds rfds wfds xfds)
-      (sys-select! (sys-fdset (~ con'iport)) #f #f (~ con'input-delay))
-    (if (= nfds 0)
-      #f ; timeout
-      (read-char (~ con'iport)))))
+  (cond-expand
+   [gauche.os.windows
+    (cond
+     ((char-ready? (~ con'iport))
+      (read-char (~ con'iport)))
+     (else
+      (sys-nanosleep (* (~ con'input-delay) 1000))
+      (if (char-ready? (~ con'iport))
+        (read-char (~ con'iport))
+        #f)))
+    ]
+   [else
+    (receive (nfds rfds wfds xfds)
+        (sys-select! (sys-fdset (~ con'iport)) #f #f (~ con'input-delay))
+      (if (= nfds 0)
+        #f ; timeout
+        (read-char (~ con'iport))))
+    ]
+   ))
 
 (define *input-escape-sequence*
   '([(#\[ #\A)         . KEY_UP]
@@ -306,7 +329,7 @@
 ;; use ordinary conditionals).
 (define-class <windows-console> ()
   (;; all slots are private
-   (oport  :init-form (standard-output-port))
+   ;(oport  :init-form (standard-output-port))
    (keybuf :init-form (make-queue))
    (ihandle)
    (ohandle)
@@ -314,7 +337,8 @@
 
 ;; The actual method definitions depend on os.windows
 (cond-expand
-  [gauche.os.windows (include "console/windows")]
+  ;[gauche.os.windows (include "console/windows")]
+  [gauche.os.windows (include "windows")]
   [else])
 
 ;;;
@@ -328,10 +352,11 @@
 ;; with a message describing why.
 ;; We use some heuristics to recognize vt100 compatible terminals.
 (define (make-default-console)
-  (cond [(and-let1 t (sys-getenv "TERM")
+  (cond [(has-windows-console?) (make <windows-console>)]
+        [(and-let1 t (sys-getenv "TERM")
            (any (cut <> t) '(#/^vt10[02]$/ #/^vt220$/ #/^xterm.*/ #/^rxvt$/)))
          (make <vt100>)]
-        [(has-windows-console?) (make <windows-console>)]
+        ;[(has-windows-console?) (make <windows-console>)]
         [(sys-getenv "TERM")
          => (^t (error #"Unsupported terminal type: ~t"))]
         [else
@@ -341,8 +366,12 @@
  [gauche.os.windows
   ;; Heuristics - check if we have a console, and it's not MSYS one.
   (define (has-windows-console?)
-    (and (guard (e [else #f])
-           (sys-get-console-title))
-         (not (sys-getenv "MSYSCON"))))]
+    ;(and (guard (e [else #f])
+    ;       (sys-get-console-title))
+    ;     (not (sys-getenv "MSYSCON"))))]
+    (if (or (not (sys-getenv "MSYSCON"))
+            (sys-isatty (standard-input-port)))
+      #t
+      #f))]
  [else
   (define (has-windows-console?) #f)])

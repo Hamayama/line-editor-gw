@@ -1,3 +1,5 @@
+;;; This program was modified for Windows.
+
 ;;;
 ;;; text.console.windows - windows console control
 ;;;
@@ -220,18 +222,31 @@
     (receive (sz v) (sys-get-console-cursor-info hdl)
       (sys-set-console-cursor-info hdl sz #t))))
 
-(define-method last-scroll ((con <windows-console>))
+(define-method last-scroll ((con <windows-console>) :optional (full-column-flag #f))
   (receive (y x) (query-cursor-position con)
-    (let ([sbw (screen-buffer-width)]
-          [sbh (screen-buffer-height)])
+    (let* ([hdl   (~ con'ohandle)]
+           [cinfo (sys-get-console-screen-buffer-info hdl)]
+           [sbw   (slot-ref cinfo 'size.x)]
+           [sbh   (slot-ref cinfo 'size.y)])
       (cond
        [(>= y (- sbh 1))
-        (display (make-string sbw) (~ con'oport)) (flush (~ con'oport))
-        (move-cursor-to con (- sbh 2) x)]))))
+        ;; for windows ime bug:
+        ;;   if a full column wrapping is done when windows ime is on,
+        ;;   one more line scroll-up may occur.
+        ;;   so we must reduce a newline character in this case.
+        (if full-column-flag
+          (sys-write-console (~ con'ohandle) (make-string sbw))
+          ;; the space character before a newline character is important
+          ;; in order to avoid a system error!
+          (sys-write-console (~ con'ohandle) (format " \n")))
+        ;(move-cursor-to con (- sbh 2) x)
+        (receive (y x) (query-cursor-position con)
+          (move-cursor-to con (- y 1) x))
+        ]))))
 
 (define-method cursor-down/scroll-up ((con <windows-console>))
+  (last-scroll con)
   (receive (y x) (query-cursor-position con)
-    (last-scroll con)
     (move-cursor-to con (+ y 1) x)))
 
 (define-method cursor-up/scroll-down ((con <windows-console>))
