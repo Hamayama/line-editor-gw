@@ -333,6 +333,7 @@
    (keybuf :init-form (make-queue))
    (ihandle)
    (ohandle)
+   (high-surrogate)
    ))
 
 ;; The actual method definitions depend on os.windows
@@ -369,6 +370,7 @@
     ;(and (guard (e [else #f])
     ;       (sys-get-console-title))
     ;     (not (sys-getenv "MSYSCON"))))]
+    ;; MSVCRT's isatty always returns 0 for Mintty without winpty.
     (if (or (not (sys-getenv "MSYSCON"))
             (sys-isatty (standard-input-port)))
       #t

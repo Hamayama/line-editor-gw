@@ -51,9 +51,8 @@
    (cond-expand
     [gauche.os.windows
      (cond
-      ;; MSVCRT's isatty always returns 0 for Mintty.
-      ;[(and (sys-isatty port) (equal? (sys-getenv "MSYSCON") "mintty.exe"))
-      [(equal? (sys-getenv "MSYSCON") "mintty.exe")
+      ;; MSVCRT's isatty always returns 0 for Mintty without winpty.
+      [(and (sys-getenv "MSYSCON") (not (sys-isatty port)))
        (let ()
          (define saved-attr
            (rlet1 ret ""

@@ -42,7 +42,6 @@
 ;; <tail> : <pt>
 ;; <pt> : (<x> . <y>)
 ;; <dir> : N | E | W | S
-;; the last tail is used to erase a character on display
 (define (snake-dir snake) (car snake))
 (define (snake-body snake) (cdr snake))
 (define (snake-head snake) (car (snake-body snake)))

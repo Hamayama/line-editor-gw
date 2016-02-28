@@ -77,6 +77,8 @@
    ;; for wide characters support
    (wide-char-disp-width :init-keyword :wide-char-disp-width :init-value 2)
    (wide-char-pos-width  :init-keyword :wide-char-pos-width  :init-value 2)
+   (surrogate-char-disp-width :init-keyword :surrogate-char-disp-width :init-value 4)
+   (surrogate-char-pos-width  :init-keyword :surrogate-char-pos-width  :init-value 4)
 
    ;; Following slots are private.
    (initpos-y)
@@ -134,9 +136,10 @@
 
 (cond-expand
  [gauche.os.windows
-       ;; for windows ime bug:
-       ;;   we have to make a space on the last line of console,
-       ;;   because windows ime uses the last line to display its status.
+       ;; For windows ime bug:
+       ;;   We have to make a space on the last line of console,
+       ;;   because windows ime overwrites the last line and causes
+       ;;   an abnormal termination of cmd.exe.
        (if (equal? (class-name (class-of con)) '<windows-console>)
          (last-scroll con))
   ]
@@ -197,11 +200,11 @@
                   (commit-history ctx buffer)
                   (eof-object))]
 
-               ;; to aboid overwriting input lines:
-               ;;   when multiple input lines are commited and a cursor
+               ;; To aboid overwriting input lines:
+               ;;   When multiple input lines are commited and a cursor
                ;;   is on the first line, the echo back will overwites
                ;;   the input lines.
-               ;;   so we redisplay the input lines and move a cursor
+               ;;   So we redisplay the input lines and move a cursor
                ;;   to the last line.
                ;['commit (commit-history ctx buffer)]
                ['commit (redisplay ctx buffer #t)
@@ -252,13 +255,21 @@
 ;; TODO: Mind char-width correctly.
 ;(define (redisplay ctx buffer)
 (define (redisplay ctx buffer :optional (pos-to-end-flag #f))
-  (define (get-char-width ch x wide-char-width)
+  (define (get-char-width ch x wide-char-width surrogate-char-width)
     (let1 chcode (char->integer ch)
       (cond
-       ((eqv? ch #\tab)
-        (- 8 (modulo x 8)))
-       ((and (>= chcode 0) (<= chcode #x7f)) 1)
-       (else wide-char-width))))
+       [(eqv? ch #\tab)
+        (- 8 (modulo x 8))]
+       [(and (>= chcode 0) (<= chcode #x7f))
+        1]
+       [(>= chcode #x10000)
+        (cond-expand
+         [gauche.ces.utf8
+          surrogate-char-width]
+         [else
+          wide-char-width])]
+       [else
+        wide-char-width])))
 
   (let* ([con (~ ctx'console)]
          [y   (~ ctx'initpos-y)]
@@ -279,10 +290,10 @@
               (move-cursor-to con y x)
 (cond-expand
  [gauche.os.windows
-              ;; for windows ime bug:
-              ;;   if a full column wrapping is done when windows ime is on,
+              ;; For windows ime bug:
+              ;;   If a full column wrapping is done when windows ime is on,
               ;;   one more line scroll-up may occur.
-              ;;   so we must deal with this problem.
+              ;;   So we must deal with this problem.
               (if (equal? (class-name (class-of con)) '<windows-console>)
                 (last-scroll con full-column-flag))
   ]
@@ -296,9 +307,10 @@
 
 (cond-expand
  [gauche.os.windows
-              ;; for windows ime bug:
-              ;;   we have to make a space on the last line of console,
-              ;;   because windows ime uses the last line to display its status.
+              ;; For windows ime bug:
+              ;;   We have to make a space on the last line of console,
+              ;;   because windows ime overwrites the last line and causes
+              ;;   an abnormal termination of cmd.exe.
               (when (equal? (class-name (class-of con)) '<windows-console>)
                 (move-cursor-to con y x)
                 (last-scroll con full-column-flag)
@@ -329,13 +341,23 @@
         (case ch
           ((#\tab #\newline))
           (else
-           (line-wrapping (+ disp-x (get-char-width ch disp-x (~ ctx'wide-char-disp-width))) (+ w 1))
+           (line-wrapping (+ disp-x (get-char-width ch
+                                                    disp-x
+                                                    (~ ctx'wide-char-disp-width)
+                                                    (~ ctx'surrogate-char-disp-width)))
+                          (+ w 1))
            (move-cursor-to con y x)
            (putch con ch)))
 
         ;; line wrapping
-        (set! x      (+ x      (get-char-width ch x      (~ ctx'wide-char-pos-width))))
-        (set! disp-x (+ disp-x (get-char-width ch disp-x (~ ctx'wide-char-disp-width))))
+        (set! x      (+ x      (get-char-width ch
+                                               x
+                                               (~ ctx'wide-char-pos-width)
+                                               (~ ctx'surrogate-char-pos-width))))
+        (set! disp-x (+ disp-x (get-char-width ch
+                                               disp-x
+                                               (~ ctx'wide-char-disp-width)
+                                               (~ ctx'surrogate-char-disp-width))))
         (case ch
           ((#\newline)
            (line-wrapping w w)
@@ -693,7 +715,6 @@
 
 (define (default-keymap)
   (hash-table 'equal?
-              `(,(ctrl #\space) . ,set-mark-command) ; for windows
               `(,(ctrl #\@) . ,set-mark-command)
               `(,(ctrl #\a) . ,move-beginning-of-line)
               `(,(ctrl #\b) . ,backward-char)
