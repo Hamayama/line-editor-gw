@@ -77,8 +77,8 @@
    ;; for wide characters support
    (wide-char-disp-width :init-keyword :wide-char-disp-width :init-value 2)
    (wide-char-pos-width  :init-keyword :wide-char-pos-width  :init-value 2)
-   (surrogate-char-disp-width :init-keyword :surrogate-char-disp-width :init-value 4)
-   (surrogate-char-pos-width  :init-keyword :surrogate-char-pos-width  :init-value 4)
+   (surrogate-char-disp-width :init-keyword :surrogate-char-disp-width :init-value 2)
+   (surrogate-char-pos-width  :init-keyword :surrogate-char-pos-width  :init-value 2)
 
    ;; Following slots are private.
    (initpos-y)
@@ -255,11 +255,12 @@
 ;; TODO: Mind char-width correctly.
 ;(define (redisplay ctx buffer)
 (define (redisplay ctx buffer :optional (pos-to-end-flag #f))
+  (define (get-tab-width x) (- 8 (modulo x 8)))
   (define (get-char-width ch x wide-char-width surrogate-char-width)
     (let1 chcode (char->integer ch)
       (cond
        [(eqv? ch #\tab)
-        (- 8 (modulo x 8))]
+        (get-tab-width x)]
        [(and (>= chcode 0) (<= chcode #x7f))
         1]
        [(>= chcode #x10000)
@@ -280,14 +281,17 @@
          [disp-x x]
          [pos-x  x]
          [pos-y  y]
+         [pos-set-flag #f]
          [pos (gap-buffer-pos buffer)]
          [g   (gap-buffer->generator buffer)]
+         [windows-console-flag #f]
          [line-wrapping
           (lambda (disp-x1 w :optional (full-column-flag #f))
             (when (>= disp-x1 w)
               (set! x      0)
               (set! disp-x 0)
               (move-cursor-to con y x)
+
 (cond-expand
  [gauche.os.windows
               ;; For windows ime bug:
@@ -298,12 +302,29 @@
                 (last-scroll con full-column-flag))
   ]
  [else])
-              (cursor-down/scroll-up con)
 
-              ;; for console buffer scroll-up
-              (receive (y2 x2) (query-cursor-position con)
-                (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y 1)))
-                (set! y y2))
+              (cursor-down/scroll-up con)
+(cond-expand
+ [gauche.os.windows
+              ;; For console buffer scroll-up:
+              ;;   The cursor position may be changed.
+              (when (equal? (class-name (class-of con)) '<windows-console>)
+                (receive (y2 x2) (query-cursor-position con)
+                  (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y 1)))
+                  (if pos-set-flag (set! pos-y (+ pos-y (- y2 y 1))))
+                  (set! y y2))
+                (set! windows-console-flag #t))
+  ]
+ [else])
+              ;; For console buffer scroll-up:
+              ;;   The cursor position may be changed.
+              (if (not windows-console-flag)
+                (cond
+                 [(>= y (- h 1))
+                  (dec! (~ ctx'initpos-y))
+                  (if pos-set-flag (dec! pos-y))]
+                 [else
+                  (inc! y)]))
 
 (cond-expand
  [gauche.os.windows
@@ -316,6 +337,7 @@
                 (last-scroll con full-column-flag)
                 (receive (y2 x2) (query-cursor-position con)
                   (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y)))
+                  (if pos-set-flag (set! pos-y (+ pos-y (- y2 y))))
                   (set! y y2))
                 )
   ]
@@ -325,7 +347,8 @@
 
     (reset-character-attribute con)
     (move-cursor-to con y 0)
-    (show-prompt ctx)
+    (when (>= y 0)
+      (show-prompt ctx))
     (clear-to-eos con)
     (let loop ([n 1])
       (glet1 ch (g)
@@ -339,15 +362,23 @@
 
         ;; print a character
         (case ch
-          ((#\tab #\newline))
-          (else
+          [(#\newline)]
+          [(#\tab)
+           (let1 tw (get-tab-width disp-x)
+             (if (>= (+ disp-x tw) w)
+               (set! tw (- w disp-x)))
+             (when (>= y 0)
+               (move-cursor-to con y x)
+               (putstr con (make-string tw #\space))))]
+          [else
            (line-wrapping (+ disp-x (get-char-width ch
                                                     disp-x
                                                     (~ ctx'wide-char-disp-width)
                                                     (~ ctx'surrogate-char-disp-width)))
                           (+ w 1))
-           (move-cursor-to con y x)
-           (putch con ch)))
+           (when (>= y 0)
+             (move-cursor-to con y x)
+             (putch con ch))])
 
         ;; line wrapping
         (set! x      (+ x      (get-char-width ch
@@ -359,19 +390,24 @@
                                                (~ ctx'wide-char-disp-width)
                                                (~ ctx'surrogate-char-disp-width))))
         (case ch
-          ((#\newline)
+          [(#\newline)
            (line-wrapping w w)
-           (show-secondary-prompt ctx)
+           (when (>= y 0)
+             (show-secondary-prompt ctx))
            (set! x (~ ctx'initpos-x))
-           (set! disp-x x))
-          (else
-           (line-wrapping disp-x w #t)))
+           (set! disp-x x)]
+          [else
+           (line-wrapping disp-x w #t)])
 
         ;; set a cursor position
-        (when (or (= n pos) pos-to-end-flag)
+        (when (and (= n pos) (not pos-set-flag))
+          (set! pos-set-flag #t)
           (set! pos-x x)
           (set! pos-y y))
         (loop (+ n 1))))
+    (when (and pos-to-end-flag pos-set-flag)
+      (set! pos-x x)
+      (set! pos-y y))
     (move-cursor-to con pos-y pos-x)))
 
 ;;
@@ -559,33 +595,21 @@
          (gap-buffer-edit! buf `(d ,p-1 1)))))
 
 (define (backward-char ctx buf key)
-  ;(and (not (gap-buffer-gap-at? buf 'beginning))
-  ;     (begin (gap-buffer-move! buf -1 'current)
-  ;            'move)))
   (if (not (gap-buffer-gap-at? buf 'beginning))
     (gap-buffer-move! buf -1 'current))
   'move)
 
 (define (forward-char ctx buf key)
-  ;(and (not (gap-buffer-gap-at? buf 'end))
-  ;     (begin (gap-buffer-move! buf 1 'current)
-  ;            'move)))
   (if (not (gap-buffer-gap-at? buf 'end))
     (gap-buffer-move! buf 1 'current))
   'move)
 
 (define (move-beginning-of-line ctx buf key)
-  ;(and (not (gap-buffer-gap-at? buf 'beginning))
-  ;     (begin (gap-buffer-move! buf 0 'beginning)
-  ;            'move)))
   (if (not (gap-buffer-gap-at? buf 'beginning))
     (gap-buffer-move! buf 0 'beginning))
   'move)
 
 (define (move-end-of-line ctx buf key)
-  ;(and (not (gap-buffer-gap-at? buf 'end))
-  ;     (begin (gap-buffer-move! buf 0 'end)
-  ;            'move)))
   (if (not (gap-buffer-gap-at? buf 'end))
     (gap-buffer-move! buf 0 'end))
   'move)
@@ -621,6 +645,7 @@
 
 (define (refresh-display ctx buf key)
   (reset-terminal (~ ctx'console))
+  (move-cursor-to (~ ctx'console) 0 0)
   (show-prompt ctx)
   (init-screen-params ctx)
   #t)

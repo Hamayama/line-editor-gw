@@ -135,6 +135,7 @@
    ;; private
    (current-attrs :init-form (make <char-attrs>))
    (input-buffer :init-form (make-queue))
+   (query-cursor-buffer :init-form (make-queue))
    (screen-size :init-value #f)   ; (width . height)
    ))
 
@@ -168,10 +169,12 @@
      ((char-ready? (~ con'iport))
       (read-char (~ con'iport)))
      (else
-      (sys-nanosleep (* (~ con'input-delay) 1000))
-      (if (char-ready? (~ con'iport))
-        (read-char (~ con'iport))
-        #f)))
+      (do ((i 0 (+ i 1)))
+          ((>= i 10) (read-char (~ con'iport)))
+        (sys-nanosleep (* (~ con'input-delay) 1000))
+        (if (char-ready? (~ con'iport))
+          (set! i 10))
+        )))
     ]
    [else
     (receive (nfds rfds wfds xfds)
@@ -179,8 +182,8 @@
       (if (= nfds 0)
         #f ; timeout
         (read-char (~ con'iport))))
-    ]
-   ))
+    ])
+  )
 
 (define *input-escape-sequence*
   '([(#\[ #\A)         . KEY_UP]
@@ -234,7 +237,7 @@
   (define (finish q)
     (if (trie-exists? tab (queue-internal-list q))
       (trie-get tab (dequeue-all! q))
-      #\escape))
+      (begin (dequeue-all! q) #\escape)))
   (let1 q (~ con'input-buffer)
     (if (queue-empty? q)
       (let1 ch (read-char (~ con'iport))
@@ -253,14 +256,35 @@
           (dequeue-all! q))))))
 
 (define-method query-cursor-position ((con <vt100>))
-  (define (r) (read-char (~ con'iport))) ; we bypass getch buffering
-  (define q (~ con'input-buffer))
+  (define q (~ con'query-cursor-buffer))
+  (define (fetch q)
+    (let1 ch (%read-char/timeout con)
+      (cond
+       [(eqv? ch #\escape) ; drop other escape sequences
+        (dequeue-all! q)
+        (fetch q)]
+       [(eqv? ch #\R)
+        (enqueue! q ch)
+        #t]
+       [(char? ch)
+        (enqueue! q ch)
+        (fetch q)]
+       [else
+        #t])))
   (putstr con "\x1b;[6n")
-  (until (r) (cut eqv? <> #\x1b) => ch (enqueue! q ch))
-  (unless (eqv? #\[   (r)) (error "terminal error"))
-  (rxmatch-case ($ list->string $ generator->list
-                   $ gtake-while (^c (not (eqv? #\R c))) r)
-    [#/^(\d+)\;(\d+)$/ (_ row col)
+  (let1 done #f
+    (while (not done)
+      (let1 ch (read-char (~ con'iport))
+        (cond
+         [(eqv? ch #\escape)
+          (dequeue-all! q)
+          (set! done (fetch q))]
+         [(char? ch)] ; drop other characters
+         [else
+          (set! done #t)]))))
+  (rxmatch-case (list->string (queue->list q))
+    [#/\[(\d+)\;(\d+)R/ (_ row col)
+     (dequeue-all! q)
      (values (- (x->integer row) 1) (- (x->integer col) 1))]
     [else (error "terminal error")]))
 
@@ -329,7 +353,6 @@
 ;; use ordinary conditionals).
 (define-class <windows-console> ()
   (;; all slots are private
-   ;(oport  :init-form (standard-output-port))
    (keybuf :init-form (make-queue))
    (ihandle)
    (ohandle)
@@ -357,7 +380,6 @@
         [(and-let1 t (sys-getenv "TERM")
            (any (cut <> t) '(#/^vt10[02]$/ #/^vt220$/ #/^xterm.*/ #/^rxvt$/)))
          (make <vt100>)]
-        ;[(has-windows-console?) (make <windows-console>)]
         [(sys-getenv "TERM")
          => (^t (error #"Unsupported terminal type: ~t"))]
         [else
@@ -367,9 +389,6 @@
  [gauche.os.windows
   ;; Heuristics - check if we have a console, and it's not MSYS one.
   (define (has-windows-console?)
-    ;(and (guard (e [else #f])
-    ;       (sys-get-console-title))
-    ;     (not (sys-getenv "MSYSCON"))))]
     ;; MSVCRT's isatty always returns 0 for Mintty without winpty.
     (if (or (not (sys-getenv "MSYSCON"))
             (sys-isatty (standard-input-port)))

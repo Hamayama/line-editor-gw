@@ -167,11 +167,14 @@
                 (set! ch (+ #x10000
                             (* (- (~ con 'high-surrogate) #xd800) #x400)
                             (- ch #xdc00)))
-                (enqueue-keybuffer ch vk ctls)]
-               [else])] ; drop a data
+                (enqueue-keybuffer ch vk ctls)
+                (set! (~ con 'high-surrogate) 0)]
+               [else
+                ;; drop a data
+                (set! (~ con 'high-surrogate) 0)])]
              [else
-              (enqueue-keybuffer ch vk ctls)])
-            (set! (~ con 'high-surrogate) 0)])
+              (enqueue-keybuffer ch vk ctls)
+              (set! (~ con 'high-surrogate) 0)])])
           ]
          [else
           (enqueue-keybuffer ch vk ctls)
@@ -208,11 +211,11 @@
 (define-method clear-screen ((con <windows-console>))
   (let* ([hdl   (~ con'ohandle)]
          [cinfo (sys-get-console-screen-buffer-info hdl)]
-         [bw    (slot-ref cinfo 'size.x)]
-         [bh    (slot-ref cinfo 'size.y)]
+         [sbw   (slot-ref cinfo 'size.x)]
+         [sbh   (slot-ref cinfo 'size.y)]
          [cattr *win-default-cattr*])
-    (sys-fill-console-output-attribute hdl cattr   (* bw bh) 0 0)
-    (sys-fill-console-output-character hdl #\space (* bw bh) 0 0)
+    (sys-fill-console-output-attribute hdl cattr   (* sbw sbh) 0 0)
+    (sys-fill-console-output-character hdl #\space (* sbw sbh) 0 0)
     (sys-set-console-cursor-position hdl 0 0)))
 
 (define-method clear-to-eol ((con <windows-console>))
@@ -260,7 +263,7 @@
         ;;   one more line scroll-up may occur.
         ;;   So we don't use a newline character in this case.
         (if full-column-flag
-          (sys-write-console (~ con'ohandle) (make-string sbw))
+          (sys-write-console (~ con'ohandle) (make-string sbw #\space))
           ;; The space character before a newline character is important
           ;; in order to avoid a system error!
           (sys-write-console (~ con'ohandle) (format " \n")))
@@ -276,7 +279,7 @@
 
 (define-method cursor-up/scroll-down ((con <windows-console>))
   (receive (y x) (query-cursor-position con)
-    (move-cursor-to con (- y 1) x)))
+    (move-cursor-to con (max (- y 1) 0) x)))
 
 (define-method query-screen-size ((con <windows-console>))
   (let* ([hdl   (~ con'ohandle)]

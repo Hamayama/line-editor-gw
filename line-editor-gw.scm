@@ -66,7 +66,7 @@
          (set! (~ ctx 'surrogate-char-disp-width) 2)
          (set! (~ ctx 'surrogate-char-pos-width)  2))
         ((4)
-         (print "UTF-8 BUT CP932 MODE (for ConEmu)")
+         (print "UTF-8 BUT CP932 MODE (for ConEmu) (for winpty)")
          (msjis-mode 0 'UTF-8 #t)
          (set! (~ ctx 'wide-char-disp-width) 2)
          (set! (~ ctx 'wide-char-pos-width)  2)
