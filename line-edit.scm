@@ -123,10 +123,14 @@
    ))
 
 ;; Entry point API
-(define (read-line/edit ctx)
+(define (read-line/edit ctx :optional (use-call-with-console #t))
   (reset-undo-info! ctx)
   (reset-last-yank! ctx)
-  ($ call-with-console (~ ctx'console)
+  (if use-call-with-console
+    (call-with-console (~ ctx'console) (%read-line/edit-sub ctx))
+    ((%read-line/edit-sub ctx) (~ ctx'console))))
+
+(define (%read-line/edit-sub ctx)
      (^[con]
        (define buffer (make-gap-buffer))
        (define (eofread)
@@ -229,7 +233,7 @@
                 (loop #t)]
                [x (error "[internal] invalid return value from a command:" x)])]
             [else
-             (error "[internal] do not know how to handle key:" h)]))))))
+             (error "[internal] do not know how to handle key:" h)])))))
 
 ;; Check some parameters of screen.
 (define (init-screen-params ctx)
@@ -272,6 +276,17 @@
        [else
         wide-char-width])))
 
+(cond-expand
+ [gauche.os.windows
+  (define windows-console-flag 
+    (equal? (class-name (class-of (~ ctx'console))) '<windows-console>))]
+ [else
+  (define windows-console-flag #f)])
+
+  ;; check a initial position
+  (if (< (~ ctx'initpos-y) 0)
+    (set! (~ ctx'initpos-y) 0))
+
   (let* ([con (~ ctx'console)]
          [y   (~ ctx'initpos-y)]
          [x   (~ ctx'initpos-x)]
@@ -284,7 +299,7 @@
          [pos-set-flag #f]
          [pos (gap-buffer-pos buffer)]
          [g   (gap-buffer->generator buffer)]
-         [windows-console-flag #f]
+         [maxy   #f]
          [line-wrapping
           (lambda (disp-x1 w :optional (full-column-flag #f))
             (when (>= disp-x1 w)
@@ -298,33 +313,37 @@
               ;;   If a full column wrapping is done when windows ime is on,
               ;;   one more line scroll-up may occur.
               ;;   So we must deal with this problem.
-              (if (equal? (class-name (class-of con)) '<windows-console>)
+              (if windows-console-flag
                 (last-scroll con full-column-flag))
   ]
  [else])
 
-              (cursor-down/scroll-up con)
 (cond-expand
  [gauche.os.windows
-              ;; For console buffer scroll-up:
-              ;;   The cursor position may be changed.
-              (when (equal? (class-name (class-of con)) '<windows-console>)
+              (when windows-console-flag
+                ;; Console buffer scroll-up:
+                ;;   The cursor position may be changed.
+                (cursor-down/scroll-up con)
                 (receive (y2 x2) (query-cursor-position con)
                   (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y 1)))
-                  (if pos-set-flag (set! pos-y (+ pos-y (- y2 y 1))))
-                  (set! y y2))
-                (set! windows-console-flag #t))
+                  (if pos-set-flag (set! pos-y (max (+ pos-y (- y2 y 1)) 0)))
+                  (set! y y2)))
   ]
  [else])
-              ;; For console buffer scroll-up:
-              ;;   The cursor position may be changed.
-              (if (not windows-console-flag)
-                (cond
-                 [(>= y (- h 1))
-                  (dec! (~ ctx'initpos-y))
-                  (if pos-set-flag (dec! pos-y))]
-                 [else
-                  (inc! y)]))
+              (when (not windows-console-flag)
+                ;; Console buffer scroll-up:
+                ;;   The cursor position may be changed.
+                (when (or (or (not maxy) (<= y maxy)) pos-to-end-flag)
+                  (cursor-down/scroll-up con)
+                  (cond
+                   [(>= y (- h 1))
+                    (dec! (~ ctx'initpos-y))
+                    (if pos-set-flag (dec! pos-y))]
+                   [else
+                    (inc! y)]))
+                ;; check a cursor position
+                (if (and (<= pos-y 0) pos-set-flag)
+                  (set! maxy (- h 2))))
 
 (cond-expand
  [gauche.os.windows
@@ -332,12 +351,12 @@
               ;;   We have to make a space on the last line of console,
               ;;   because windows ime overwrites the last line and causes
               ;;   an abnormal termination of cmd.exe.
-              (when (equal? (class-name (class-of con)) '<windows-console>)
+              (when windows-console-flag
                 (move-cursor-to con y x)
                 (last-scroll con full-column-flag)
                 (receive (y2 x2) (query-cursor-position con)
                   (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y)))
-                  (if pos-set-flag (set! pos-y (+ pos-y (- y2 y))))
+                  (if pos-set-flag (set! pos-y (max (+ pos-y (- y2 y)) 0)))
                   (set! y y2))
                 )
   ]
@@ -347,8 +366,7 @@
 
     (reset-character-attribute con)
     (move-cursor-to con y 0)
-    (when (>= y 0)
-      (show-prompt ctx))
+    (show-prompt ctx)
     (clear-to-eos con)
     (let loop ([n 1])
       (glet1 ch (g)
@@ -367,7 +385,7 @@
            (let1 tw (get-tab-width disp-x)
              (if (>= (+ disp-x tw) w)
                (set! tw (- w disp-x)))
-             (when (>= y 0)
+             (when (or (and (>= y 0) (or (not maxy) (<= y maxy))) pos-to-end-flag)
                (move-cursor-to con y x)
                (putstr con (make-string tw #\space))))]
           [else
@@ -376,7 +394,7 @@
                                                     (~ ctx'wide-char-disp-width)
                                                     (~ ctx'surrogate-char-disp-width)))
                           (+ w 1))
-           (when (>= y 0)
+           (when (or (and (>= y 0) (or (not maxy) (<= y maxy))) pos-to-end-flag)
              (move-cursor-to con y x)
              (putch con ch))])
 
@@ -392,7 +410,7 @@
         (case ch
           [(#\newline)
            (line-wrapping w w)
-           (when (>= y 0)
+           (when (or (and (>= y 0) (or (not maxy) (<= y maxy))) pos-to-end-flag)
              (show-secondary-prompt ctx))
            (set! x (~ ctx'initpos-x))
            (set! disp-x x)]
@@ -400,10 +418,17 @@
            (line-wrapping disp-x w #t)])
 
         ;; set a cursor position
-        (when (and (= n pos) (not pos-set-flag))
-          (set! pos-set-flag #t)
-          (set! pos-x x)
-          (set! pos-y y))
+        (if (not pos-set-flag)
+          (cond
+           [(= pos 0)
+            (set! pos-set-flag #t)
+            (set! pos-x (~ ctx'initpos-x))
+            (set! pos-y y)]
+           [(= pos n)
+            (set! pos-set-flag #t)
+            (set! pos-x x)
+            (set! pos-y y)]))
+
         (loop (+ n 1))))
     (when (and pos-to-end-flag pos-set-flag)
       (set! pos-x x)

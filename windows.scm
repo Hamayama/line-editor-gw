@@ -212,10 +212,10 @@
   (let* ([hdl   (~ con'ohandle)]
          [cinfo (sys-get-console-screen-buffer-info hdl)]
          [sbw   (slot-ref cinfo 'size.x)]
-         [sbh   (slot-ref cinfo 'size.y)]
-         [cattr *win-default-cattr*])
-    (sys-fill-console-output-attribute hdl cattr   (* sbw sbh) 0 0)
-    (sys-fill-console-output-character hdl #\space (* sbw sbh) 0 0)
+         [sbh   (slot-ref cinfo 'size.y)])
+    (let1 n (* sbw sbh)
+      (sys-fill-console-output-attribute hdl *win-default-cattr* n 0 0)
+      (sys-fill-console-output-character hdl #\space n 0 0))
     (sys-set-console-cursor-position hdl 0 0)))
 
 (define-method clear-to-eol ((con <windows-console>))
@@ -226,7 +226,7 @@
          [sbw   (slot-ref cinfo'size.x)])
     (let1 n (- sbw x)
       (sys-fill-console-output-attribute hdl *win-default-cattr* n x y)
-      (sys-write-console-output-character hdl (make-string n #\space) x y))))
+      (sys-fill-console-output-character hdl #\space n x y))))
 
 (define-method clear-to-eos ((con <windows-console>))
   (let* ([hdl   (~ con'ohandle)]
@@ -235,10 +235,12 @@
          [y     (slot-ref cinfo'cursor-position.y)]
          [sr    (slot-ref cinfo'window.right)]
          [sb    (slot-ref cinfo'window.bottom)]
-         [sbw   (slot-ref cinfo'size.x)])
-    (let1 n (+ (* (- sb y) sbw) (- x) sr 1)
+         [sbw   (slot-ref cinfo'size.x)]
+         [sbh   (slot-ref cinfo'size.y)])
+    ;(let1 n (+ (* (- sb y) sbw) (- x) sr 1)
+    (let1 n (* sbw (- sbh y))
       (sys-fill-console-output-attribute hdl *win-default-cattr* n x y)
-      (sys-write-console-output-character hdl (make-string n #\space) x y))))
+      (sys-fill-console-output-character hdl #\space n x y))))
 
 (define-method hide-cursor ((con <windows-console>))
   (let1 hdl (~ con'ohandle)
@@ -263,10 +265,10 @@
         ;;   one more line scroll-up may occur.
         ;;   So we don't use a newline character in this case.
         (if full-column-flag
-          (sys-write-console (~ con'ohandle) (make-string sbw #\space))
+          (sys-write-console hdl (make-string sbw #\space))
           ;; The space character before a newline character is important
           ;; in order to avoid a system error!
-          (sys-write-console (~ con'ohandle) (format " \n")))
+          (sys-write-console hdl (format " \n")))
         ;(move-cursor-to con (- sbh 2) x1)
         (receive (y2 x2) (query-cursor-position con)
           (move-cursor-to con (- y2 1) x1))

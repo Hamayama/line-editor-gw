@@ -44,7 +44,7 @@
                  (list-ref args 1)
                  "")
       (case (x->integer arg1)
-        ((0 1)
+        ((1)
          (print "SJIS MODE")
          (msjis-mode 0 'SJIS #f)
          (set! (~ ctx 'wide-char-disp-width) 2)
@@ -72,7 +72,7 @@
          (set! (~ ctx 'wide-char-pos-width)  2)
          (set! (~ ctx 'surrogate-char-disp-width) 4)
          (set! (~ ctx 'surrogate-char-pos-width)  4))
-        ((5)
+        ((0 5)
          (print "UTF-8 MODE (for Mintty)")
          (msjis-mode 0 'UTF-8 #t)
          (set! (~ ctx 'wide-char-disp-width) 2)
@@ -84,33 +84,29 @@
          )))]
  [else])
 
-    ;(let loop ()
-    ;  (let1 line (read-line/edit ctx)
-    ;    (newline)
-    ;    ;(if (eof-object? line) (exit 0))
-    ;    (print line)
-    ;    (inc! count)
-    ;    (loop)))))
-    (let* ((p (make <virtual-input-port>
-                :getc
-                (let1 p1 (open-input-string "")
-                  (lambda ()
-                    (let loop ((ch (read-char p1)))
-                      (cond
-                       ((eof-object? ch)
-                        (set! p1 (open-input-string
-                                  (string-append (read-line/edit ctx)
-                                                 (string #\newline))))
-                        (newline)
-                        (inc! count)
-                        (loop (read-char p1)))
-                       (else
-                        ch)))))))
-           (reader (lambda ()
-                     (with-input-from-port p
-                       (with-module gauche.interactive %reader))))
-           (evaluator #f)
-           (printer   #f)
-           (prompter  (lambda ())))
-      (read-eval-print-loop reader evaluator printer prompter))))
+    ($ call-with-console con
+      (lambda (con)
+        (let* ((p (make <virtual-input-port>
+                    :getc
+                    (let1 p1 (open-input-string "")
+                      (lambda ()
+                        (let loop ((ch (read-char p1)))
+                          (cond
+                           ((eof-object? ch)
+                            (set! p1 (open-input-string
+                                      (string-append (read-line/edit ctx #f)
+                                                     (string #\newline))))
+                            (newline)
+                            (inc! count)
+                            (loop (read-char p1)))
+                           (else
+                            ch)))))))
+               (reader (lambda ()
+                         (with-input-from-port p
+                           (with-module gauche.interactive %reader)
+                           )))
+               (evaluator #f)
+               (printer   #f)
+               (prompter  (lambda ())))
+          (read-eval-print-loop reader evaluator printer prompter))))))
 

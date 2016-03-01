@@ -256,35 +256,31 @@
           (dequeue-all! q))))))
 
 (define-method query-cursor-position ((con <vt100>))
-  (define q (~ con'query-cursor-buffer))
-  (define (fetch q)
+  (define q1 (~ con'input-buffer))
+  (define q2 (~ con'query-cursor-buffer))
+  (define (fetch q2)
     (let1 ch (%read-char/timeout con)
       (cond
        [(eqv? ch #\escape) ; drop other escape sequences
-        (dequeue-all! q)
-        (fetch q)]
+        (dequeue-all! q2)
+        (fetch q2)]
        [(eqv? ch #\R)
-        (enqueue! q ch)
-        #t]
+        (enqueue! q2 ch)]
        [(char? ch)
-        (enqueue! q ch)
-        (fetch q)]
-       [else
-        #t])))
+        (enqueue! q2 ch)
+        (fetch q2)])))
   (putstr con "\x1b;[6n")
-  (let1 done #f
-    (while (not done)
-      (let1 ch (read-char (~ con'iport))
-        (cond
-         [(eqv? ch #\escape)
-          (dequeue-all! q)
-          (set! done (fetch q))]
-         [(char? ch)] ; drop other characters
-         [else
-          (set! done #t)]))))
-  (rxmatch-case (list->string (queue->list q))
+  (let loop ((ch (read-char (~ con'iport))))
+    (cond
+     [(eqv? ch #\escape)
+      (dequeue-all! q2)
+      (fetch q2)]
+     [(char? ch)
+      (enqueue! q1 ch)
+      (loop (read-char (~ con'iport)))]))
+  (rxmatch-case (list->string (queue->list q2))
     [#/\[(\d+)\;(\d+)R/ (_ row col)
-     (dequeue-all! q)
+     (dequeue-all! q2)
      (values (- (x->integer row) 1) (- (x->integer col) 1))]
     [else (error "terminal error")]))
 
