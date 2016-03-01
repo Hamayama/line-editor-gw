@@ -135,7 +135,6 @@
    ;; private
    (current-attrs :init-form (make <char-attrs>))
    (input-buffer :init-form (make-queue))
-   (query-cursor-buffer :init-form (make-queue))
    (screen-size :init-value #f)   ; (width . height)
    ))
 
@@ -166,15 +165,17 @@
   (cond-expand
    [gauche.os.windows
     (cond
-     ((char-ready? (~ con'iport))
-      (read-char (~ con'iport)))
-     (else
-      (do ((i 0 (+ i 1)))
-          ((>= i 10) (read-char (~ con'iport)))
-        (sys-nanosleep (* (~ con'input-delay) 1000))
-        (if (char-ready? (~ con'iport))
-          (set! i 10))
-        )))
+     [(or (char-ready? (~ con'iport)) (not (~ con'input-delay)))
+      (read-char (~ con'iport))]
+     [else
+      (let1 ch #f
+        (do ((i 0 (+ i 1)))
+            ((>= i 10) ch)
+          (sys-nanosleep (* (~ con'input-delay) 1000))
+          (when (char-ready? (~ con'iport))
+            (set! ch (read-char (~ con'iport)))
+            (set! i 10))
+          ))])
     ]
    [else
     (receive (nfds rfds wfds xfds)
@@ -248,7 +249,9 @@
 
 (define-method get-raw-chars ((con <vt100>))  ; no translation
   (let1 q (~ con'input-buffer)
-    (when (queue-empty? q) (enqueue! q (read-char (~ con'iport))))
+    ;(when (queue-empty? q) (enqueue! q (read-char (~ con'iport))))
+    (dequeue-all! q)
+    (enqueue! q (read-char (~ con'iport)))
     (let loop ()
       (let1 ch (%read-char/timeout con)
         (if (char? ch)
@@ -256,13 +259,14 @@
           (dequeue-all! q))))))
 
 (define-method query-cursor-position ((con <vt100>))
-  (define q1 (~ con'input-buffer))
-  (define q2 (~ con'query-cursor-buffer))
+  (define q (~ con'input-buffer))
+  (define q2 (make-queue)) ; query-cursor-buffer
   (define (fetch q2)
-    (let1 ch (%read-char/timeout con)
+    ;(let1 ch (%read-char/timeout con)
+    (let1 ch (read-char (~ con'iport))
       (cond
-       [(eqv? ch #\escape) ; drop other escape sequences
-        (dequeue-all! q2)
+       [(eqv? ch #\escape)
+        (dequeue-all! q2) ; drop other escape sequences
         (fetch q2)]
        [(eqv? ch #\R)
         (enqueue! q2 ch)]
@@ -273,14 +277,12 @@
   (let loop ((ch (read-char (~ con'iport))))
     (cond
      [(eqv? ch #\escape)
-      (dequeue-all! q2)
       (fetch q2)]
      [(char? ch)
-      (enqueue! q1 ch)
+      (enqueue! q ch) ; queuing other characters
       (loop (read-char (~ con'iport)))]))
   (rxmatch-case (list->string (queue->list q2))
     [#/\[(\d+)\;(\d+)R/ (_ row col)
-     (dequeue-all! q2)
      (values (- (x->integer row) 1) (- (x->integer col) 1))]
     [else (error "terminal error")]))
 
@@ -389,6 +391,9 @@
     (if (or (not (sys-getenv "MSYSCON"))
             (sys-isatty (standard-input-port)))
       #t
-      #f))]
+      #f))
+  ]
  [else
-  (define (has-windows-console?) #f)])
+  (define (has-windows-console?) #f)
+  (define (last-scroll)) ; dummy
+  ])

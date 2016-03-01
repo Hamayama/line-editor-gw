@@ -191,6 +191,17 @@
     (%getch-sub con))
   (dequeue! (~ con 'keybuf)))
 
+(define-method get-raw-chars  ((con <windows-console>))
+  (define q (make-queue))
+  (while (queue-empty? q)
+    (sys-nanosleep #e10e6) ; 10msec
+    (dolist [ks (win-keystate (~ con'ihandle))]
+      (match-let1 (kdown ch vk ctls) ks
+        (if (= kdown 1)
+          (enqueue! q (list (integer->char ch) vk (logand ctls #x1f))))
+        )))
+  (dequeue-all! q))
+
 (define-method chready? ((con <windows-console>))
   (%getch-sub con)
   (not (queue-empty? (~ con 'keybuf))))
@@ -233,8 +244,8 @@
          [cinfo (sys-get-console-screen-buffer-info hdl)]
          [x     (slot-ref cinfo'cursor-position.x)]
          [y     (slot-ref cinfo'cursor-position.y)]
-         [sr    (slot-ref cinfo'window.right)]
-         [sb    (slot-ref cinfo'window.bottom)]
+         ;[sr    (slot-ref cinfo'window.right)]
+         ;[sb    (slot-ref cinfo'window.bottom)]
          [sbw   (slot-ref cinfo'size.x)]
          [sbh   (slot-ref cinfo'size.y)])
     ;(let1 n (+ (* (- sb y) sbw) (- x) sr 1)

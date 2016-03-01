@@ -941,6 +941,8 @@
               `(KEY_RIGHT . ,forward-char)
               `(KEY_INS   . ,undefined-command)
               `(KEY_DEL   . ,delete-char)
+              `(KEY_HOME  . ,undefined-command)
+              `(KEY_END   . ,undefined-command)
               `(KEY_PGDN  . ,undefined-command)
               `(KEY_PGUP  . ,undefined-command)
               `(KEY_F1    . ,undefined-command)
