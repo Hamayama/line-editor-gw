@@ -307,30 +307,37 @@
               (set! disp-x 0)
               (move-cursor-to con y x)
 
-(cond-expand
- [gauche.os.windows
-              ;; For windows ime bug:
-              ;;   If a full column wrapping is done when windows ime is on,
-              ;;   one more line scroll-up may occur.
-              ;;   So we must deal with this problem.
-              (if windows-console-flag
-                (last-scroll con full-column-flag))
-  ]
- [else])
+              (cond
+               [windows-console-flag
 
-(cond-expand
- [gauche.os.windows
-              (when windows-console-flag
+                ;; For windows ime bug:
+                ;;   If a full column wrapping is done when windows ime is on,
+                ;;   one more line scroll-up may occur.
+                ;;   So we must deal with this problem.
+                (last-scroll con full-column-flag)
+
                 ;; Console buffer scroll-up:
                 ;;   The cursor position may be changed.
                 (cursor-down/scroll-up con)
                 (receive (y2 x2) (query-cursor-position con)
                   (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y 1)))
                   (if pos-set-flag (set! pos-y (max (+ pos-y (- y2 y 1)) 0)))
-                  (set! y y2)))
-  ]
- [else])
-              (when (not windows-console-flag)
+                  (set! y y2))
+
+                ;; For windows ime bug:
+                ;;   We have to make a space on the last line of console,
+                ;;   because windows ime overwrites the last line and causes
+                ;;   an abnormal termination of cmd.exe.
+                (move-cursor-to con y x)
+                (last-scroll con full-column-flag)
+                (receive (y2 x2) (query-cursor-position con)
+                  (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y)))
+                  (if pos-set-flag (set! pos-y (max (+ pos-y (- y2 y)) 0)))
+                  (set! y y2))
+
+                ]
+               [else
+
                 ;; Console buffer scroll-up:
                 ;;   The cursor position may be changed.
                 (when (or (or (not maxy) (<= y maxy)) pos-to-end-flag)
@@ -341,27 +348,12 @@
                     (if pos-set-flag (dec! pos-y))]
                    [else
                     (inc! y)]))
-                ;; check a cursor position
+
+                ;; check a cursor position for clipping a display area
                 (if (and (<= pos-y 0) pos-set-flag)
-                  (set! maxy (- h 2))))
+                  (set! maxy (- h 2)))
 
-(cond-expand
- [gauche.os.windows
-              ;; For windows ime bug:
-              ;;   We have to make a space on the last line of console,
-              ;;   because windows ime overwrites the last line and causes
-              ;;   an abnormal termination of cmd.exe.
-              (when windows-console-flag
-                (move-cursor-to con y x)
-                (last-scroll con full-column-flag)
-                (receive (y2 x2) (query-cursor-position con)
-                  (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y)))
-                  (if pos-set-flag (set! pos-y (max (+ pos-y (- y2 y)) 0)))
-                  (set! y y2))
-                )
-  ]
- [else])
-
+                ])
               ))])
 
     (reset-character-attribute con)

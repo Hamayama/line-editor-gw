@@ -395,5 +395,5 @@
   ]
  [else
   (define (has-windows-console?) #f)
-  (define (last-scroll)) ; dummy
+  (define-method last-scroll ((con <vt100>) :optional (full-column-flag #f))) ; dummy
   ])
