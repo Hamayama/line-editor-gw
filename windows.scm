@@ -264,11 +264,11 @@
       (sys-set-console-cursor-info hdl sz #t))))
 
 (define-method last-scroll ((con <windows-console>) :optional (full-column-flag #f))
-  (receive (y1 x1) (query-cursor-position con)
-    (let* ([hdl   (~ con'ohandle)]
-           [cinfo (sys-get-console-screen-buffer-info hdl)]
-           [sbw   (slot-ref cinfo 'size.x)]
-           [sbh   (slot-ref cinfo 'size.y)])
+  (let* ([hdl   (~ con'ohandle)]
+         [cinfo (sys-get-console-screen-buffer-info hdl)]
+         [sbw   (slot-ref cinfo 'size.x)]
+         [sbh   (slot-ref cinfo 'size.y)])
+    (receive (y1 x1) (query-cursor-position con)
       (cond
        [(>= y1 (- sbh 1))
         ;; For windows ime bug:

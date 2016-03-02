@@ -85,28 +85,28 @@
  [else])
 
     ($ call-with-console con
-      (lambda (con)
-        (let* ((p (make <virtual-input-port>
-                    :getc
-                    (let1 p1 (open-input-string "")
-                      (lambda ()
-                        (let loop ((ch (read-char p1)))
-                          (cond
-                           ((eof-object? ch)
-                            (set! p1 (open-input-string
-                                      (string-append (read-line/edit ctx #f)
-                                                     (string #\newline))))
-                            (newline)
-                            (inc! count)
-                            (loop (read-char p1)))
-                           (else
-                            ch)))))))
-               (reader (lambda ()
-                         (with-input-from-port p
-                           (with-module gauche.interactive %reader)
-                           )))
-               (evaluator #f)
-               (printer   #f)
-               (prompter  (lambda ())))
-          (read-eval-print-loop reader evaluator printer prompter))))))
+       (lambda (con)
+         (let* ((p (make <virtual-input-port>
+                     :getc
+                     (let1 p1 (open-input-string "")
+                       (lambda ()
+                         (let loop ((ch (read-char p1)))
+                           (cond
+                            ((eof-object? ch)
+                             (set! p1 (open-input-string
+                                       (string-append (read-line/edit ctx #f)
+                                                      (string #\newline))))
+                             (newline)
+                             (inc! count)
+                             (loop (read-char p1)))
+                            (else
+                             ch)))))))
+                (reader (lambda ()
+                          (with-input-from-port p
+                            (with-module gauche.interactive %reader)
+                            )))
+                (evaluator #f)
+                (printer   #f)
+                (prompter  (lambda ())))
+           (read-eval-print-loop reader evaluator printer prompter))))))
 

@@ -123,6 +123,7 @@
    ))
 
 ;; Entry point API
+;(define (read-line/edit ctx)
 (define (read-line/edit ctx :optional (use-call-with-console #t))
   (reset-undo-info! ctx)
   (reset-last-yank! ctx)
@@ -138,16 +139,11 @@
            (commit-history ctx buffer)
            (eof-object)))
 
-(cond-expand
- [gauche.os.windows
        ;; For windows ime bug:
        ;;   We have to make a space on the last line of console,
        ;;   because windows ime overwrites the last line and causes
        ;;   an abnormal termination of cmd.exe.
-       (if (equal? (class-name (class-of con)) '<windows-console>)
-         (last-scroll con))
-  ]
- [else])
+       (last-scroll con)
 
        (show-prompt ctx)
        (init-screen-params ctx)
@@ -279,7 +275,7 @@
 (cond-expand
  [gauche.os.windows
   (define windows-console-flag 
-    (equal? (class-name (class-of (~ ctx'console))) '<windows-console>))]
+    (eq? (class-name (class-of (~ ctx'console))) '<windows-console>))]
  [else
   (define windows-console-flag #f)])
 
@@ -328,7 +324,6 @@
                 ;;   We have to make a space on the last line of console,
                 ;;   because windows ime overwrites the last line and causes
                 ;;   an abnormal termination of cmd.exe.
-                (move-cursor-to con y x)
                 (last-scroll con full-column-flag)
                 (receive (y2 x2) (query-cursor-position con)
                   (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- y2 y)))
@@ -364,7 +359,7 @@
       (glet1 ch (g)
 
         ;; set a region color
-        (when (and sel (not (eqv? (car sel) (cdr sel))))
+        (when (and (and sel (not (eqv? (car sel) (cdr sel)))) (not pos-to-end-flag))
           (cond [(eqv? (- n 1) (car sel))
                  (set-character-attribute con '(#f #f bright underscore))]
                 [(eqv? (- n 1) (cdr sel))
@@ -422,7 +417,7 @@
             (set! pos-y y)]))
 
         (loop (+ n 1))))
-    (when (and pos-to-end-flag pos-set-flag)
+    (when (and pos-set-flag pos-to-end-flag)
       (set! pos-x x)
       (set! pos-y y))
     (move-cursor-to con pos-y pos-x)))

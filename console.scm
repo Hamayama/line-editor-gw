@@ -175,16 +175,13 @@
           (when (char-ready? (~ con'iport))
             (set! ch (read-char (~ con'iport)))
             (set! i 10))
-          ))])
-    ]
+          ))])]
    [else
     (receive (nfds rfds wfds xfds)
         (sys-select! (sys-fdset (~ con'iport)) #f #f (~ con'input-delay))
       (if (= nfds 0)
         #f ; timeout
-        (read-char (~ con'iport))))
-    ])
-  )
+        (read-char (~ con'iport))))]))
 
 (define *input-escape-sequence*
   '([(#\[ #\A)         . KEY_UP]
@@ -342,6 +339,10 @@
         (thunk))
     (reset-character-attribute con)))
 
+;; For windows ime bug:
+;;   This is a dummy method.
+(define-method last-scroll ((con <vt100>) :optional (full-column-flag #f)))
+
 ;;;
 ;;; Console class implementation - windows cosole
 ;;;
@@ -388,12 +389,7 @@
   ;; Heuristics - check if we have a console, and it's not MSYS one.
   (define (has-windows-console?)
     ;; MSVCRT's isatty always returns 0 for Mintty without winpty.
-    (if (or (not (sys-getenv "MSYSCON"))
-            (sys-isatty (standard-input-port)))
-      #t
-      #f))
-  ]
+    (not (and (sys-getenv "MSYSCON") 
+              (not (sys-isatty (standard-input-port))))))]
  [else
-  (define (has-windows-console?) #f)
-  (define-method last-scroll ((con <vt100>) :optional (full-column-flag #f))) ; dummy
-  ])
+  (define (has-windows-console?) #f)])
