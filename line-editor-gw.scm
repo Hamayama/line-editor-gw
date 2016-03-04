@@ -93,20 +93,26 @@
                          (let loop ((ch (read-char p1)))
                            (cond
                             ((eof-object? ch)
-                             (set! p1 (open-input-string
-                                       (string-append (read-line/edit ctx #f)
-                                                      (string #\newline))))
-                             (newline)
-                             (inc! count)
-                             (loop (read-char p1)))
+                             (let1 str (read-line/edit ctx #f)
+                               (if (eof-object? str) (set! str "(eof-object)"))
+                               (set! p1 (open-input-string
+                                         (string-append str (string #\newline))))
+                               (newline)
+                               (flush)
+                               (inc! count)
+                               (loop (read-char p1))))
                             (else
                              ch)))))))
-                (reader (lambda ()
-                          (with-input-from-port p
-                            (with-module gauche.interactive %reader)
-                            )))
-                (evaluator #f)
+                (reader    (lambda ()
+                             (with-input-from-port p
+                               (with-module gauche.interactive %reader))))
+                (evaluator (lambda (expr env)
+                             ($ call-with-console con
+                                (lambda (con)
+                                  ((with-module gauche.interactive %evaluator) expr env))
+                                :mode 'cooked)))
                 (printer   #f)
                 (prompter  (lambda ())))
-           (read-eval-print-loop reader evaluator printer prompter))))))
+           (read-eval-print-loop reader evaluator printer prompter)))
+       :mode 'rare)))
 

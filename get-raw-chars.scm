@@ -21,5 +21,3 @@
                                get-raw-chars))
   0)
 
-
-
