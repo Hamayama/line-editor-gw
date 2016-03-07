@@ -73,7 +73,7 @@
          (set! (~ ctx 'surrogate-char-disp-width) 4)
          (set! (~ ctx 'surrogate-char-pos-width)  4))
         ((0 5)
-         (print "UTF-8 MODE (for Mintty)")
+         (print "UTF-8 MODE (for mintty)")
          (msjis-mode 0 'UTF-8 #t)
          (set! (~ ctx 'wide-char-disp-width) 2)
          (set! (~ ctx 'wide-char-pos-width)  2)

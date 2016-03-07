@@ -41,6 +41,103 @@
    (use file.util)]
   [else])
 
+ (cond-expand
+  [gauche.os.windows
+   ;; Heuristics - check if we have a console, and it's not MSYS one.
+   (define (has-windows-console?)
+     ;; MSVCRT's isatty always returns 0 for mintty on MSYS
+     ;; (except for using winpty).
+     (or (not (sys-getenv "MSYSCON"))
+         (sys-isatty (standard-input-port))
+         (sys-isatty (standard-output-port))
+         (sys-isatty (standard-error-port))))]
+  [else
+   (define (has-windows-console?) #f)])
+
+ ;; NB: on windows, this only works with iport==#f.
+ (define (without-echoing iport proc)
+   (cond-expand
+    [gauche.os.windows
+     (cond
+      [(has-windows-console?)
+       ;; for windows console
+       (cond [(not iport)
+              (call-with-input-file "CON"
+                (cut without-echoing <> proc))]
+             [(sys-isatty iport)
+              (let ()
+                (define ihandle (sys-get-std-handle STD_INPUT_HANDLE))
+                (define orig-mode (sys-get-console-mode ihandle))
+                (define (echo-off)
+                  (sys-set-console-mode ihandle
+                                        (logand orig-mode
+                                                (lognot ENABLE_ECHO_INPUT))))
+                (define (echo-on)
+                  (sys-set-console-mode ihandle orig-mode))
+                (unwind-protect (begin (echo-off) (proc iport)) (echo-on)))]
+             [else (proc iport)])]
+      [else
+       ;; for mintty on MSYS
+       (cond [(not iport)
+              ;; Both "CON" and "/dev/tty" are unavailable.
+              ;(call-with-input-file "CON"
+              ;  (cut without-echoing <> proc))]
+              (without-echoing (standard-input-port) proc)]
+             ;; MSVCRT's isatty always returns 0 for mintty on MSYS.
+             ;[(sys-isatty iport)
+             [else
+              (let ()
+                (define saved-attr
+                  (rlet1 ret ""
+                    (receive (out tempfile)
+                        (sys-mkstemp (build-path (temporary-directory) "gauche_stty1_"))
+                      (unwind-protect
+                       (begin
+                         (close-output-port out)
+                         (sys-system (string-append "stty -g > "
+                                                    (regexp-replace-all #/\\/ tempfile "/")))
+                         (set! ret (with-input-from-file tempfile read-line)))
+                       (sys-unlink tempfile)))))
+                (define (echo-off)
+                  (sys-system (string-append "stty " "-echo  icanon  iexten  isig")))
+                (define (echo-on)
+                  (sys-system (string-append "stty " saved-attr)))
+                (unwind-protect (begin (echo-off) (proc iport)) (echo-on)))]
+             ;[else (proc iport)]
+             )])
+     ]
+    [else
+     (cond [(not iport) ;; open tty
+            (call-with-input-file "/dev/tty"
+              (cut without-echoing <> proc))]
+           [(sys-isatty iport)
+            (let ()
+              (define attr (sys-tcgetattr iport))
+              (define lflag-save (ref attr'lflag))
+              (define (echo-off)
+                (set! (ref attr'lflag)
+                      ;(logand (ref attr'lflag)
+                      ;         (lognot (logior ECHO ICANON ISIG))))
+                      (logior ICANON IEXTEN ISIG
+                              (logand (ref attr'lflag)
+                                      (lognot (logior ECHO)))))
+                (sys-tcsetattr iport TCSANOW attr))
+              (define (echo-on)
+                (set! (ref attr'lflag) lflag-save)
+                (sys-tcsetattr iport TCSANOW attr))
+              (unwind-protect (begin (echo-off) (proc iport)) (echo-on)))]
+           [else (proc iport)])
+     ]))
+
+ #|
+ ;; sample
+ (define (get-password)
+ (with-output-to-file
+ (cond-expand [gauche.os.windows "CON"] [else "/dev/tty"])
+ (lambda () (display "Password: ") (flush)))
+ (without-echoing #f read-line))
+ |#
+
  ;; mode should be either one of 'cooked, 'rare or 'raw
  ;; NB: Although we work on the given port and also calls PROC with port,
  ;; what's changed is actually a device connected to the port.  There can
@@ -51,14 +148,13 @@
    (cond-expand
     [gauche.os.windows
      (cond
-      ;; MSVCRT's isatty always returns 0 for Mintty without winpty.
-      [(and (sys-getenv "MSYSCON")
-            (not (sys-isatty port)))
+      ;; for mintty on MSYS
+      [(not (has-windows-console?))
        (let ()
          (define saved-attr
            (rlet1 ret ""
              (receive (out tempfile)
-                 (sys-mkstemp (build-path (temporary-directory) "gauche_stty"))
+                 (sys-mkstemp (build-path (temporary-directory) "gauche_stty2_"))
                (unwind-protect
                 (begin
                   (close-output-port out)

@@ -11,15 +11,12 @@
   ]
  [else])
 
-(use gauche.termios)
-(use gauche.parameter)
 (use gauche.array)
 (use util.match)
 (use srfi-27)
 
 (cond-expand
  [gauche.os.windows
-  (require "termios_patch")
   (require "console")
   (import text.console)]
  [else
