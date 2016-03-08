@@ -375,7 +375,7 @@
 ;; with a message describing why.
 ;; We use some heuristics to recognize vt100 compatible terminals.
 (define (make-default-console)
-  (cond [(with-module gauche.termios has-windows-console?)
+  (cond [((with-module gauche.termios has-windows-console?))
          (make <windows-console>)]
         [(and-let1 t (sys-getenv "TERM")
            (any (cut <> t) '(#/^vt10[02]$/ #/^vt220$/ #/^xterm.*/ #/^rxvt$/)))

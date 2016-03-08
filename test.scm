@@ -1,5 +1,5 @@
 ;;
-;; testing text.console and text.line-edit
+;; testing text.console, text.line-edit and gauche.termios
 ;;
 
 (cond-expand
@@ -38,6 +38,19 @@
   (use text.line-edit)])
 
 (test-module 'text.line-edit)
+(test-end)
+
+
+(test-start "gauche.termios")
+
+(use gauche.termios)
+
+(cond-expand
+ [gauche.os.windows
+  (require "termios_patch")]
+ [else])
+
+(test-module 'gauche.termios)
 (test-end)
 
 

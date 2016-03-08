@@ -54,6 +54,22 @@
   [else
    (define (has-windows-console?) #f)])
 
+ (cond-expand
+  [gauche.os.windows
+   ;; For mintty on MSYS:
+   ;;   We can use stty command instead of Cygwin's runtime library.
+   (define (msys-get-stty template)
+     (rlet1 ret ""
+       (receive (out tempfile)
+           (sys-mkstemp (build-path (temporary-directory) template))
+         (unwind-protect
+             (begin
+               (close-output-port out)
+               (sys-system (string-append "stty -g > "
+                                          (regexp-replace-all #/\\/ tempfile "/")))
+               (set! ret (with-input-from-file tempfile read-line)))
+           (sys-unlink tempfile)))))])
+
  ;; NB: on windows, this only works with iport==#f.
  (define (without-echoing iport proc)
    (cond-expand
@@ -87,21 +103,9 @@
              ;[(sys-isatty iport)
              [else
               (let ()
-                (define saved-attr
-                  (rlet1 ret ""
-                    (receive (out tempfile)
-                        (sys-mkstemp (build-path (temporary-directory) "gauche_stty1_"))
-                      (unwind-protect
-                       (begin
-                         (close-output-port out)
-                         (sys-system (string-append "stty -g > "
-                                                    (regexp-replace-all #/\\/ tempfile "/")))
-                         (set! ret (with-input-from-file tempfile read-line)))
-                       (sys-unlink tempfile)))))
-                (define (echo-off)
-                  (sys-system (string-append "stty " "-echo  icanon  iexten  isig")))
-                (define (echo-on)
-                  (sys-system (string-append "stty " saved-attr)))
+                (define saved-attr (msys-get-stty "gauche_stty1_"))
+                (define (echo-off) (sys-system "stty -echo  icanon  iexten  isig"))
+                (define (echo-on)  (sys-system (string-append "stty " saved-attr)))
                 (unwind-protect (begin (echo-off) (proc iport)) (echo-on)))]
              ;[else (proc iport)]
              )])
@@ -120,7 +124,7 @@
                       ;         (lognot (logior ECHO ICANON ISIG))))
                       (logior ICANON IEXTEN ISIG
                               (logand (ref attr'lflag)
-                                      (lognot (logior ECHO)))))
+                                      (lognot ECHO))))
                 (sys-tcsetattr iport TCSANOW attr))
               (define (echo-on)
                 (set! (ref attr'lflag) lflag-save)
@@ -148,29 +152,19 @@
    (cond-expand
     [gauche.os.windows
      (cond
-      ;; for mintty on MSYS
-      [(not (has-windows-console?))
+      [(has-windows-console?)
+       ;; for windows console
+       (proc port)]
+      [else
+       ;; for mintty on MSYS
        (let ()
-         (define saved-attr
-           (rlet1 ret ""
-             (receive (out tempfile)
-                 (sys-mkstemp (build-path (temporary-directory) "gauche_stty2_"))
-               (unwind-protect
-                (begin
-                  (close-output-port out)
-                  (sys-system (string-append "stty -g > "
-                                             (regexp-replace-all #/\\/ tempfile "/")))
-                  (set! ret (with-input-from-file tempfile read-line)))
-                (sys-unlink tempfile)))))
+         (define saved-attr (msys-get-stty "gauche_stty2_"))
          (define saved-buffering (port-buffering port))
          (define new-attr
            (case mode
-             [(raw)
-              "-echo -icanon -iexten -isig"]
-             [(rare)
-              "-echo -icanon -iexten  isig"]
-             [(cooked)
-              " echo  icanon  iexten  isig"]
+             [(raw)    "-echo -icanon -iexten -isig"]
+             [(rare)   "-echo -icanon -iexten  isig"]
+             [(cooked) " echo  icanon  iexten  isig"]
              [else
               (error "terminal mode needs to be one of cooked, rare or raw, \
                         but got:" mode)]))
@@ -182,8 +176,7 @@
            (sys-system (string-append "stty " saved-attr))
            (set! (port-buffering port) saved-buffering)
            (when cleanup (cleanup)))
-         (unwind-protect (begin (set) (proc port)) (reset)))]
-      [else (proc port)])]
+         (unwind-protect (begin (set) (proc port)) (reset)))])]
     [else
      (cond
       [(sys-isatty port)
