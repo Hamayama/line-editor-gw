@@ -272,9 +272,6 @@
        [else
         wide-char-width])))
 
-  (define use-windows-console?
-    (eq? (class-name (class-of (~ ctx'console))) '<windows-console>))
-
   ;; check a initial position
   (if (< (~ ctx'initpos-y) 0)
     (set! (~ ctx'initpos-y) 0))
@@ -292,7 +289,9 @@
          [pos-y  y]
          [pos-set-flag (= pos 0)]
          [maxy   #f]
-         [sel-flag #f])
+         [sel-flag #f]
+         [windows-console-flag (eq? (class-name (class-of (~ ctx'console)))
+                                    '<windows-console>)])
 
     (define (line-wrapping disp-x1 w :optional (full-column-flag #f))
       (when (>= disp-x1 w)
@@ -301,7 +300,7 @@
         (move-cursor-to con y x)
 
         (cond
-         [use-windows-console?
+         [windows-console-flag
 
           ;; For windows ime bug:
           ;;   When windows ime is on, a full column wrapping
