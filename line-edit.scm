@@ -293,6 +293,9 @@
          [windows-console-flag (eq? (class-name (class-of (~ ctx'console)))
                                     '<windows-console>)])
 
+    (define (display-area?)
+      (and (>= y 0) (or (not maxy) (<= y maxy) pos-to-end-flag)))
+
     (define (line-wrapping disp-x1 w :optional (full-column-flag #f))
       (when (>= disp-x1 w)
         (set! x      0)
@@ -331,7 +334,7 @@
 
           ;; Console buffer scroll-up:
           ;;   The cursor position may be changed.
-          (when (or (or (not maxy) (<= y maxy)) pos-to-end-flag)
+          (when (display-area?)
             (cursor-down/scroll-up con)
             (cond
              [(>= y (- h 1))
@@ -363,23 +366,24 @@
                  (set! sel-flag #f)
                  (reset-character-attribute con)]))
 
-        ;; print a character
+        ;; display a character
         (case ch
           [(#\newline)]
           [(#\tab)
            (let1 tw (get-tab-width disp-x)
              (if (>= (+ disp-x tw) w)
                (set! tw (- w disp-x)))
-             (when (or (and (>= y 0) (or (not maxy) (<= y maxy))) pos-to-end-flag)
+             (when (display-area?)
                (move-cursor-to con y x)
                (putstr con (make-string tw #\space))))]
           [else
+           ;; a wide character wrapping before displaying it
            (line-wrapping (+ disp-x (get-char-width ch
                                                     disp-x
                                                     (~ ctx'wide-char-disp-width)
                                                     (~ ctx'surrogate-char-disp-width)))
                           (+ w 1))
-           (when (or (and (>= y 0) (or (not maxy) (<= y maxy))) pos-to-end-flag)
+           (when (display-area?)
              (move-cursor-to con y x)
              (putch con ch))])
 
@@ -395,7 +399,7 @@
         (case ch
           [(#\newline)
            (line-wrapping w w)
-           (when (or (and (>= y 0) (or (not maxy) (<= y maxy))) pos-to-end-flag)
+           (when (display-area?)
              (if sel-flag (reset-character-attribute con))
              (show-secondary-prompt ctx)
              (if sel-flag (set-character-attribute con '(#f #f bright underscore))))
