@@ -368,6 +368,14 @@
 ;;; Select appropriate console
 ;;;
 
+;; Regexp that matches $TERM that behaves as if it's vt100.
+;; Strict compatibility isn't necessary; we're using just a common
+;; denominator.  We expand this list as we discover other terminal types
+;; that works.
+;; See https://github.com/shirok/Gauche/issues/179 about 'screen'.
+(define-constant *vt100-compatible-terminals*
+  #/^(vt10[02]|vt220|xterm.*|rxvt.*|screen)$/)
+
 ;; Convenience API
 ;; Inspect the runtime environment and returns a console object with
 ;; appropriate setting.
@@ -378,7 +386,7 @@
   (cond [((with-module gauche.termios has-windows-console?))
          (make <windows-console>)]
         [(and-let1 t (sys-getenv "TERM")
-           (any (cut <> t) '(#/^vt10[02]$/ #/^vt220$/ #/^xterm.*/ #/^rxvt$/)))
+           (*vt100-compatible-terminals* t))
          (make <vt100>)]
         [(sys-getenv "TERM")
          => (^t (error #"Unsupported terminal type: ~t"))]
