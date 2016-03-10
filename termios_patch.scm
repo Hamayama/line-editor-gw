@@ -68,7 +68,8 @@
                (sys-system (string-append "stty -g > "
                                           (regexp-replace-all #/\\/ tempfile "/")))
                (set! ret (with-input-from-file tempfile read-line)))
-           (sys-unlink tempfile)))))])
+           (sys-unlink tempfile)))))]
+  [else])
 
  ;; NB: on windows, this only works with iport==#f.
  (define (without-echoing iport proc)
