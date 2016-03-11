@@ -391,4 +391,4 @@
         [(sys-getenv "TERM")
          => (^t (error #"Unsupported terminal type: ~t"))]
         [else
-         (error "TERM isn't set and don't know how to control the terminal.")]))
+         (error "TERM isn't set and we don't know how to control the terminal.")]))
