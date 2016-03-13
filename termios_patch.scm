@@ -35,6 +35,8 @@
 
 (select-module gauche.termios)
 
+ (export has-windows-console?)
+
  (cond-expand
   [gauche.os.windows (use os.windows)]
   [else])
