@@ -6,27 +6,20 @@
 
 ;; Just reads a line at a time and echoes back.
 
-(cond-expand
- [gauche.os.windows
-  (add-load-path "." :relative)
-  (display #\cr)(flush) ; allocate console
-  ]
- [else])
-
-(cond-expand
- [gauche.os.windows
-  (use msjis)
-  (require "console")
-  (import text.console)
-  (require "line-edit")
-  (import text.line-edit)]
- [else
-  (use text.console)
-  (use text.line-edit)])
-
+(add-load-path "." :relative)
+(display #\cr)(flush) ; allocate console for windows
+;(use text.console)
+;(use text.line-edit)
+(require "console")
+(import text.console)
+(require "line-edit")
+(import text.line-edit)
 (use gauche.listener :only (complete-sexp?))
 (use gauche.vport)
 (use gauche.interactive)
+(cond-expand
+ [gauche.os.windows (use msjis)]
+ [else])
 
 (define (main args)
   (let* ([con (guard (e [else (exit 1 (~ e'message))])
@@ -40,10 +33,10 @@
 (cond-expand
  [gauche.os.windows
     ;(print args)
-    (let1 arg1 (if (and (list? args) (>= (length args) 2))
-                 (list-ref args 1)
-                 "")
-      (case (x->integer arg1)
+    (let1 arg1 0
+      (if (and (list? args) (>= (length args) 2))
+        (set! arg1 (x->integer (list-ref args 1))))
+      (case arg1
         ((1)
          (print "SJIS MODE")
          (msjis-mode 0 'SJIS #f)
@@ -72,16 +65,7 @@
          (set! (~ ctx 'wide-char-pos-width)  2)
          (set! (~ ctx 'surrogate-char-disp-width) 4)
          (set! (~ ctx 'surrogate-char-pos-width)  4))
-        ((0 5)
-         (print "UTF-8 MODE (for mintty)")
-         (msjis-mode 0 'UTF-8 #t)
-         (set! (~ ctx 'wide-char-disp-width) 2)
-         (set! (~ ctx 'wide-char-pos-width)  2)
-         (set! (~ ctx 'surrogate-char-disp-width) 2)
-         (set! (~ ctx 'surrogate-char-pos-width)  2))
-        (else
-         (print "ASCII MODE")
-         )))]
+        ))]
  [else])
 
     ($ call-with-console con

@@ -38,14 +38,9 @@
   (use data.ring-buffer)
   (use data.queue)
   (use util.match)
-
-(cond-expand
- [gauche.os.windows
+  ;(use text.console)
   (require "console")
-  (import text.console)]
- [else
-  (use text.console)])
-
+  (import text.console)
   (use text.gap-buffer)
   (export <line-edit-context> read-line/edit)
   )

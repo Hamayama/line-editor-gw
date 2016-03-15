@@ -52,12 +52,7 @@
   (use gauche.generator)
   (use gauche.sequence)
   (use gauche.termios)
-
-(cond-expand
- [gauche.os.windows
-  (require "termios_patch")]
- [else])
-
+  (require "termios_patch")
   (use data.trie)
   (use data.queue)
   (use util.match)

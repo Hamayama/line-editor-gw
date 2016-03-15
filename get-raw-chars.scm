@@ -1,18 +1,12 @@
+;; This program was modified for Windows.
+
 ;; Example of reading a raw keyboard input from console, using text.console.
 
-(cond-expand
- [gauche.os.windows
-  (add-load-path "." :relative)
-  (display #\cr)(flush) ; allocate console
-  ]
- [else])
-
-(cond-expand
- [gauche.os.windows
-  (require "console")
-  (import text.console)]
- [else
-  (use text.console)])
+(add-load-path "." :relative)
+(display #\cr)(flush) ; allocate console for windows
+;(use text.console)
+(require "console")
+(import text.console)
 
 (define (main _)
   (for-each (^c (write c) (newline))

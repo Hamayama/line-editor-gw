@@ -4,23 +4,14 @@
 ;; snake game - sample for raw console manipulation
 ;;
 
-(cond-expand
- [gauche.os.windows
-  (add-load-path "." :relative)
-  (display #\cr)(flush) ; allocate console
-  ]
- [else])
-
+(add-load-path "." :relative)
+(display #\cr)(flush) ; allocate console for windows
 (use gauche.array)
 (use util.match)
 (use srfi-27)
-
-(cond-expand
- [gauche.os.windows
-  (require "console")
-  (import text.console)]
- [else
-  (use text.console)])
+;(use text.console)
+(require "console")
+(import text.console)
 
 (define *wait*    #e100e6) ; 100msec
 (define *waitmin* #e20e6)  ;  20msec

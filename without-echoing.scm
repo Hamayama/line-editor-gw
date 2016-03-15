@@ -1,19 +1,12 @@
+;; This program was modified for Windows.
+
 ;; Example of termios
 
-(cond-expand
- [gauche.os.windows
-  (add-load-path "." :relative)
-  (display #\cr)(flush) ; allocate console
-  ]
- [else])
-
+(add-load-path "." :relative)
+(display #\cr)(flush) ; allocate console for windows
 (use gauche.uvector)
 (use gauche.termios)
-
-(cond-expand
- [gauche.os.windows
-  (require "termios_patch")]
- [else])
+(require "termios_patch")
 
 (define (get-password)
   (display "Password: ")
