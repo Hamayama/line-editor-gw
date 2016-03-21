@@ -77,7 +77,7 @@
                          (let loop ((ch (read-char p1)))
                            (cond
                             ((eof-object? ch)
-                             (let1 str (read-line/edit ctx #f)
+                             (let1 str (read-line/edit ctx)
                                (if (eof-object? str) (set! str "(eof-object)"))
                                (set! p1 (open-input-string
                                          (string-append str (string #\newline))))
