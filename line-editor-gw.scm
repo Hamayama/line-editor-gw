@@ -78,8 +78,8 @@
                                (if (eof-object? str) (set! str "(eof-object)"))
                                (set! p1 (open-input-string
                                          (string-append str (string #\newline))))
-                               (newline)
-                               (flush)
+                               ;(newline)
+                               ;(flush)
                                (inc! count)
                                (loop (read-char p1))))
                             (else

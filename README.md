@@ -113,6 +113,9 @@
 - 2016-3-15  v2.62 デバッグ等
 - 2016-3-22  v2.70 標準モジュールの更新に追従(line-edit.scm)
 - 2016-4-24  v2.71 line-editor-gw.scm の main の引数処理見直し
+- 2016-5-24  v2.80 標準モジュールの更新に追従(console.scm, line-edit.scm)  
+  windows.scm の set-character-attribute の reverse 処理修正  
+  line-editor-gw.scm の改行出力削除
 
 
-(2016-4-24)
+(2016-5-24)
