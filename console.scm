@@ -285,7 +285,9 @@
 (define-method show-cursor ((con <vt100>)) (putstr con "\x1b;[?25h"))
 
 ;; Move cursor; if cursor is already top or bottom, scroll.
-(define-method cursor-down/scroll-up ((con <vt100>))
+;; NB: full-column-flag is a dummy argument for compatibility with
+;; <windows-console>.
+(define-method cursor-down/scroll-up ((con <vt100>) :optional (full-column-flag #f))
   (putstr con "\x1b;D"))
 (define-method cursor-up/scroll-down ((con <vt100>))
   (putstr con "\x1b;M"))

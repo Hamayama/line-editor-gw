@@ -281,10 +281,27 @@
           (move-cursor-to con (- y2 1) x1))
         ))))
 
-(define-method cursor-down/scroll-up ((con <windows-console>))
-  (ensure-bottom-room con)
-  (receive (y x) (query-cursor-position con)
-    (move-cursor-to con (+ y 1) x)))
+;; To deal with windows IME bug, we must have an optional argument
+;; and return values.
+(define-method cursor-down/scroll-up ((con <windows-console>)
+                                      :optional (full-column-flag #f))
+  ;; When windows ime is on, a full column wrapping
+  ;; causes one more line scroll-up.
+  ;; So we must deal with this problem.
+  (ensure-bottom-room con full-column-flag)
+
+  ;; move cursor to the next line
+  (receive (y1 x1) (query-cursor-position con)
+    (move-cursor-to con (+ y1 1) x1)
+
+    ;; We have to make a room on the last line of console,
+    ;; because windows ime overwrites the last line and causes
+    ;; a system error.
+    (ensure-bottom-room con full-column-flag)
+
+    ;; return the moving distance of a cursor position
+    (receive (y2 x2) (query-cursor-position con)
+      (values (- y2 y1) (- x2 x1)))))
 
 (define-method cursor-up/scroll-down ((con <windows-console>))
   (receive (y x) (query-cursor-position con)

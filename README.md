@@ -116,6 +116,7 @@
 - 2016-5-24  v2.80 標準モジュールの更新に追従(console.scm, line-edit.scm)  
   windows.scm の set-character-attribute の reverse 処理修正  
   line-editor-gw.scm の改行出力削除
+- 2016-5-26  v2.81 cursor-down/scroll-up の処理見直し等
 
 
-(2016-5-24)
+(2016-5-26)
