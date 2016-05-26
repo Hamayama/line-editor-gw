@@ -297,30 +297,26 @@
       (when (>= disp-x1 w)
         (set! x      0)
         (set! disp-x 0)
-        (move-cursor-to con y x)
         (cond
-         [(is-a? con <windows-console>)
+         [(display-area?)
+          (move-cursor-to con y 0)
+
           ;; move cursor to the next line
-          (receive (dy dx) (cursor-down/scroll-up con full-column-flag)
+          (let1 dy (cursor-down/scroll-up con y h full-column-flag)
+            (set! y (+ y dy))
             (set! (~ ctx'initpos-y) (+ (~ ctx'initpos-y) (- dy 1)))
-            (if pos-set-flag (set! pos-y (max (+ pos-y (- dy 1)) 0)))
-            (set! y (+ y dy)))
+            (when pos-set-flag
+              (set! pos-y (+ pos-y (- dy 1)))
+              ;; check a cursor position for clipping a display area
+              (when (<= pos-y 0)
+                (set! pos-y 0)
+                (set! maxy  (- h 2)))
+              ))
+
           ]
          [else
-          ;; move cursor to the next line
-          (when (display-area?)
-            (cursor-down/scroll-up con)
-            (cond
-             [(>= y (- h 1))
-              (dec! (~ ctx'initpos-y))
-              (if pos-set-flag (dec! pos-y))]
-             [else
-              (inc! y)]))
-          ;; check a cursor position for clipping a display area
-          (if (and pos-set-flag (<= pos-y 0))
-            (set! maxy (- h 2)))
-          ])
-        ))
+          (inc! y)
+          ])))
 
     (reset-character-attribute con)
     (move-cursor-to con y 0)

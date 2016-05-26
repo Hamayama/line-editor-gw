@@ -281,10 +281,9 @@
           (move-cursor-to con (- y2 1) x1))
         ))))
 
-;; To deal with windows IME bug, we must have an optional argument
-;; and return values.
 (define-method cursor-down/scroll-up ((con <windows-console>)
-                                      :optional (full-column-flag #f))
+                                      :optional (y #f) (height #f)
+                                      (full-column-flag #f))
   ;; When windows ime is on, a full column wrapping
   ;; causes one more line scroll-up.
   ;; So we must deal with this problem.
@@ -299,13 +298,16 @@
     ;; a system error.
     (ensure-bottom-room con full-column-flag)
 
-    ;; return the moving distance of a cursor position
+    ;; return the difference of the cursor position y
     (receive (y2 x2) (query-cursor-position con)
-      (values (- y2 y1) (- x2 x1)))))
+      (- y2 y1))))
 
-(define-method cursor-up/scroll-down ((con <windows-console>))
-  (receive (y x) (query-cursor-position con)
-    (move-cursor-to con (max (- y 1) 0) x)))
+(define-method cursor-up/scroll-down ((con <windows-console>)
+                                      :optional (y #f))
+  (receive (y1 x1) (query-cursor-position con)
+    (move-cursor-to con (max (- y1 1) 0) x1)
+    ;; return the difference of the cursor position y
+    (if (<= y1 0) 0 -1)))
 
 (define-method query-screen-size ((con <windows-console>))
   (let* ([hdl   (~ con'ohandle)]

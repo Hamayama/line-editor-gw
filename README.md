@@ -117,6 +117,7 @@
   windows.scm の set-character-attribute の reverse 処理修正  
   line-editor-gw.scm の改行出力削除
 - 2016-5-26  v2.81 cursor-down/scroll-up の処理見直し等
+- 2016-5-26  v2.82 cursor-down/scroll-up の処理見直し等
 
 
 (2016-5-26)
