@@ -118,6 +118,7 @@
   line-editor-gw.scm の改行出力削除
 - 2016-5-26  v2.81 cursor-down/scroll-up の処理見直し等
 - 2016-5-26  v2.82 cursor-down/scroll-up の処理見直し等
+- 2016-5-27  v2.83 cursor-down/scroll-up の処理修正
 
 
-(2016-5-26)
+(2016-5-27)
