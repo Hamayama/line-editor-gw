@@ -75,13 +75,17 @@
                            (cond
                             ((eof-object? ch)
                              (let1 str (read-line/edit ctx)
-                               (if (eof-object? str) (set! str "(eof-object)"))
-                               (set! p1 (open-input-string
-                                         (string-append str (string #\newline))))
-                               ;(newline)
-                               ;(flush)
-                               (inc! count)
-                               (loop (read-char p1))))
+                               ;(if (eof-object? str) (set! str "(eof-object)"))
+                               (cond
+                                ((eof-object? str)
+                                 str)
+                                (else
+                                 (set! p1 (open-input-string
+                                          (string-append str (string #\newline))))
+                                 ;(newline)
+                                 ;(flush)
+                                 (inc! count)
+                                 (loop (read-char p1))))))
                             (else
                              ch)))))))
                 (reader    (lambda ()

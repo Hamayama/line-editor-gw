@@ -117,11 +117,12 @@
 - 2016-4-24  v2.71 line-editor-gw.scm の main の引数処理見直し
 - 2016-5-24  v2.80 標準モジュールの更新に追従(console.scm, line-edit.scm)  
   windows.scm の set-character-attribute の reverse 処理修正  
-  line-editor-gw.scm の改行出力削除
+  REPLの改行出力削除(line-edit.scm で出力するようになったため)
 - 2016-5-26  v2.81 cursor-down/scroll-up の処理見直し等
 - 2016-5-26  v2.82 cursor-down/scroll-up の処理見直し等
 - 2016-5-27  v2.83 cursor-down/scroll-up の処理修正
 - 2016-5-27  v2.84 一部処理見直し(redisplay)
+- 2016-5-30  v2.85 REPLのEOF処理見直し
 
 
-(2016-5-27)
+(2016-5-30)
