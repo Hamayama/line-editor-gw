@@ -91,7 +91,11 @@
    ;; every command except yank and yank-pop.
    (kill-ring :init-form (make-ring-buffer
                           (make-vector *kill-ring-size*)
-                          :overflow-handler 'overwrite))
+                          ;:overflow-handler 'overwrite))
+                          :overflow-handler
+                          (^[rb v]
+                            (ring-buffer-add-front! rb (ring-buffer-remove-back! rb))
+                            'overwrite)))
    (last-yank :init-value -1) ; index into the kill-ring buffer.  -1 means
                               ; last op wasn't yank.
    (last-yank-pos :init-value 0) ; index into buffer where last yank is put.
@@ -112,7 +116,11 @@
    ;; the line and undo-stack; see below.
    (history :init-form (make-ring-buffer
                         (make-vector *history-size*)
-                        :overflow-handler 'overwrite))
+                        ;:overflow-handler 'overwrite))
+                        :overflow-handler
+                        (^[rb v]
+                          (ring-buffer-add-front! rb (ring-buffer-remove-back! rb))
+                          'overwrite)))
    (history-pos :init-value -1)
    (history-transient :init-value #f)
    ))
