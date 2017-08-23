@@ -99,8 +99,8 @@
 
 ;; Obtain keyboard status
 (define (win-keystate)
-  (let ([hdl     (get-ihandle)]
-        [kslist  (make-queue)])
+  (let ([hdl    (get-ihandle)]
+        [kslist (make-queue)])
     (let loop ([irlist (sys-peek-console-input hdl)])
       (unless (null? irlist)
         (sys-read-console-input hdl)
@@ -183,24 +183,27 @@
 ;; Get a char; returns a char, or #f on timeout.
 ;; The timeout argument is in us.
 (define-method getch ((con <windows-console>) :optional (timeout #f))
-  (define wait 10000) ; windows timer limit (10ms)
+  (define wait-us 10000) ; windows timer limit (10ms)
+  (define wait-ns (* wait-us 1000))
   (let loop ([t 0])
     (if (and timeout (>= t timeout))
       #f ; timeout
       (cond
        [(queue-empty? (~ con'keybuf))
-        (sys-nanosleep (* wait 1000))
+        (sys-nanosleep wait-ns)
         (%getch-sub con)
         (if timeout
-          (loop (+ t wait))
+          (loop (+ t wait-us))
           (loop 0))]
        [else
         (dequeue! (~ con'keybuf))]))))
 
 (define-method get-raw-chars ((con <windows-console>))
+  (define wait-us 10000) ; windows timer limit (10ms)
+  (define wait-ns (* wait-us 1000))
   (define q (make-queue))
   (while (queue-empty? q)
-    (sys-nanosleep #e10e6) ; 10ms
+    (sys-nanosleep wait-ns)
     (dolist [ks (win-keystate)]
       (match-let1 (kdown ch vk ctls) ks
         (when (= kdown 1)
@@ -280,12 +283,12 @@
       (when (>= y1 (- sbh 1))
         (guard (e [(<system-error> e)
                    ;; When windows ime is on, a full column wrapping
-                   ;; causes one more line scroll-up, so we don't
-                   ;; write a newline character in this case.
+                   ;; causes one more line scroll-up.
+                   ;; So we don't write a newline character in this case.
                    (if (not full-column-flag)
                      ;; When windows ime is on, the space character
                      ;; before a newline character is important
-                     ;; in order to avoid another system error.
+                     ;; in order to avoid a system error.
                      (sys-write-console hdl " \n"))])
           (sys-write-console hdl "\n"))
         (receive (y2 x2) (query-cursor-position con)
@@ -295,8 +298,9 @@
 (define-method cursor-down/scroll-up ((con <windows-console>)
                                       :optional (y #f) (height #f)
                                       (full-column-flag #f))
-  ;; When windows ime is on, a full column wrapping causes
-  ;; one more line scroll-up, so we must deal with this problem.
+  ;; When windows ime is on, a full column wrapping
+  ;; causes one more line scroll-up.
+  ;; So we must deal with this problem.
   (ensure-bottom-room con full-column-flag)
 
   ;; move cursor to the next line

@@ -39,6 +39,7 @@
   [gauche.os.windows (use os.windows)]
   [else])
 
+ ;; Heuristics - check if we have a windows console.
  (define (has-windows-console?)
    (cond-expand
     [gauche.os.windows
