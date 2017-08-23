@@ -15,6 +15,13 @@
 (test-module 'text.console)
 (test-end)
 
+(test-start "text.console.generic")
+;(use text.console.generic)
+(require "generic")
+(import text.console.generic)
+(test-module 'text.console.generic)
+(test-end)
+
 (test-start "text.line-edit")
 ;(use text.line-edit)
 (require "line-edit")

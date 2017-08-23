@@ -3,7 +3,7 @@
 ;;;
 ;;; text.line-edit - line editing
 ;;;
-;;;   Copyright (c) 2015  Shiro Kawai  <shiro@acm.org>
+;;;   Copyright (c) 2015-2017  Shiro Kawai  <shiro@acm.org>
 ;;;
 ;;;   Redistribution and use in source and binary forms, with or without
 ;;;   modification, are permitted provided that the following conditions
@@ -138,7 +138,7 @@
          (if (> (gap-buffer-content-length buffer) 0)
            (commit-history ctx buffer)
            (eof-object)))
-       (ensure-bottom-room (~ ctx'console)) ; workaround for windows IME glitch
+       (ensure-bottom-room con) ; workaround for windows IME glitch
        (show-prompt ctx)
        (init-screen-params ctx)
        ;; Main loop.  Get a key and invoke associated command.
@@ -189,10 +189,7 @@
              (loop #t)]
             [(procedure? h)
              (match (h ctx buffer ch)
-               [(? eof-object?)
-                (if (> (gap-buffer-content-length buffer) 0)
-                  (commit-history ctx buffer)
-                  (eof-object))]
+               [(? eof-object?) (eofread)]
                ['nop       (loop redisp)]
                ['visible   (reset-last-yank! ctx)
                            (clear-mark! ctx buffer)
@@ -210,7 +207,7 @@
                 ;; the existing input.
                 (gap-buffer-move! buffer 0 'end)
                 (redisplay ctx buffer)
-                (putstr (~ ctx'console) "\r\n")
+                (putstr con "\r\n")
                 (commit-history ctx buffer)]
                ['undone (reset-last-yank! ctx)
                         (clear-mark! ctx buffer)
@@ -347,7 +344,8 @@
                (move-cursor-to con y x)
                (putstr con (make-string tw #\space))))]
           [else
-           ;; a wide character wrapping before displaying it
+           ;; wide characters need a check of line wrapping before
+           ;; displaying them
            (line-wrapping (+ disp-x (get-char-disp-width ch disp-x)) (+ w 1))
            (when (display-area?)
              (move-cursor-to con y x)
