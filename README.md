@@ -146,6 +146,7 @@
 - 2017-8-24  v2.92 Windowsコンソール用のgetchの処理修正
 - 2017-8-24  v2.93 Windowsのとき、enqueue-keybufferでCRをLFに変換するようにした
 - 2017-8-25  v2.94 標準モジュールの更新に追従(generic.scm, windows.scm, line-edit.scm
+- 2017-8-26  v2.95 line-editor-gw.scm の main の引数処理見直し(使えなくなったモードを削除)
 
 
-(2017-8-25)
+(2017-8-26)
