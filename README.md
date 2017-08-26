@@ -46,7 +46,7 @@
      改行が2倍になっていたため)
    - getchのタイムアウト関連の処理修正(2017-8-23)(2017-8-24)(2017-8-25)
    - Windowsのとき、enqueue-keybufferでCRをLFに変換するようにした(2017-8-24)
-
+   - Unicodeの文字幅を利用可能にした(2017-8-27)
 4. MSYS2 の mintty 上での表示に暫定対応 (実験中)
 5. MSYS2 の mintty 上で winpty 使用時の表示に暫定対応 (実験中)
 
@@ -147,6 +147,7 @@
 - 2017-8-24  v2.93 Windowsのとき、enqueue-keybufferでCRをLFに変換するようにした
 - 2017-8-25  v2.94 標準モジュールの更新に追従(generic.scm, windows.scm, line-edit.scm
 - 2017-8-26  v2.95 line-editor-gw.scm の main の引数処理見直し(使えなくなったモードを削除)
+- 2017-8-27  v3.00 Unicodeの文字幅を利用可能にした
 
 
-(2017-8-26)
+(2017-8-27)
