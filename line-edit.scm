@@ -42,6 +42,7 @@
   (require "console")
   (import text.console)
   (use text.gap-buffer)
+  (use gauche.version)
   (export <line-edit-context> read-line/edit)
   )
 (select-module text.line-edit)
@@ -94,7 +95,9 @@
                           ;:overflow-handler 'overwrite))
                           :overflow-handler
                           (^[rb v]
-                            (ring-buffer-add-front! rb (ring-buffer-remove-back! rb))
+                            ;; for Gauche v0.9.5 compatibility
+                            (if (version<? (gauche-version) "0.9.6_pre2")
+                              (ring-buffer-add-front! rb (ring-buffer-remove-back! rb)))
                             'overwrite)))
    (last-yank :init-value -1) ; index into the kill-ring buffer.  -1 means
                               ; last op wasn't yank.
@@ -119,7 +122,9 @@
                         ;:overflow-handler 'overwrite))
                         :overflow-handler
                         (^[rb v]
-                          (ring-buffer-add-front! rb (ring-buffer-remove-back! rb))
+                          ;; for Gauche v0.9.5 compatibility
+                          (if (version<? (gauche-version) "0.9.6_pre2")
+                            (ring-buffer-add-front! rb (ring-buffer-remove-back! rb)))
                           'overwrite)))
    (history-pos :init-value -1)
    (history-transient :init-value #f)
