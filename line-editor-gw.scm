@@ -35,7 +35,8 @@
          [ctx (make <line-edit-context>
                 :console con
                 :prompt (^[] (format #t "[~d]$ " count))
-                :input-continues (^s (not (complete-sexp? s))))])
+                :input-continues (^s (not (or (#/^\s*,/ s) ; top level command
+                                              (complete-sexp? s)))))])
 
     (cond-expand
      [gauche.os.windows
