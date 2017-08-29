@@ -185,7 +185,7 @@
 ;; Get a char; returns a char, or #f on timeout.
 ;; The timeout argument is in us.
 (define-method getch ((con <windows-console>) :optional (timeout #f))
-  ;; Windows timer has rather coarce resolution (10ms)
+  ;; Windows timer has rather coarse resolution (10ms)
   (define resolution-us 10000)
   (let loop ([t 0])
     (%getch-sub con)
@@ -199,7 +199,7 @@
                  (loop 0)))))))
 
 (define-method get-raw-chars ((con <windows-console>))
-  ;; Windows timer has rather coarce resolution (10ms)
+  ;; Windows timer has rather coarse resolution (10ms)
   (define resolution-us 10000)
   (define q (make-queue))
   (while (queue-empty? q)
