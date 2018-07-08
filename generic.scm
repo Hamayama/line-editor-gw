@@ -3,7 +3,7 @@
 ;;;
 ;;; text.console.generic - basic console control (autoloaded)
 ;;;
-;;;   Copyright (c) 2014-2017  Shiro Kawai  <shiro@acm.org>
+;;;   Copyright (c) 2014-2018  Shiro Kawai  <shiro@acm.org>
 ;;;
 ;;;   Redistribution and use in source and binary forms, with or without
 ;;;   modification, are permitted provided that the following conditions
@@ -311,11 +311,11 @@
 ;; No portable way to directly query it, so we take a kind of heuristic approach.
 (define-method query-screen-size ((con <vt100>))
   (define *max-dim* 2000)
-  (putstr con "\x1b;[s") ; save cursor pos
+  (putstr con "\x1b;7") ; save cursor pos
   (move-cursor-to con *max-dim* *max-dim*)
   (unwind-protect (receive (h w) (query-cursor-position con)
                     (values (+ h 1) (+ w 1)))
-    (putstr con "\x1b;[u"))) ;restore cursor pos
+    (putstr con "\x1b;8"))) ;restore cursor pos
 
 (define-method set-character-attribute ((con <vt100>) spec)
   (define (color->n color)
@@ -366,6 +366,5 @@
 
 ;; The actual method definitions depend on os.windows
 (cond-expand
-  ;[gauche.os.windows (include "console/windows")]
   [gauche.os.windows (include "windows")]
   [else])
